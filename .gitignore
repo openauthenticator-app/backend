@@ -1,0 +1,13 @@
+.idea
+node_modules
+dist
+.data
+.nitro
+.cache
+.output
+.env
+.env.local
+bruno
+server/reset.ts
+backend.config.ts
+package-lock.json

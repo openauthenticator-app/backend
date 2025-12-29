@@ -1,0 +1,141 @@
+import jwt, { JwtPayload } from 'jsonwebtoken'
+import { H3Event } from 'h3'
+import type { StringValue } from 'ms'
+import { AppError } from '~/app/error'
+
+type Payload = JwtPayload & { sub: string, sid: string }
+type TokenKind = 'access' | 'refresh'
+
+export class Session {
+  private readonly id: string
+  readonly userId: string
+
+  private constructor(id: string, userId: string) {
+    this.id = id
+    this.userId = userId
+  }
+
+  static async initiate(userId: string, clientId: string) {
+    const session = new Session(generateRandomString(), userId)
+    const accessToken = session.generateToken('access')
+    const refreshToken = session.generateToken('refresh')
+    if (!accessToken || !refreshToken) {
+      throw new TokensGenerationError()
+    }
+    const db = useDatabase()
+    const { success } = await db
+      .prepare('INSERT INTO sessions (sessionId, userId, clientId, tokenHash) VALUES (?, ?, ?, ?)')
+      .bind(session.id, userId, clientId, sha256(refreshToken, process.env.REFRESH_PEPPER))
+      .run()
+
+    if (!success) {
+      throw new SessionCreationError()
+    }
+    return {
+      session,
+      accessToken,
+      refreshToken,
+    }
+  }
+
+  static fromAuthorizationHeader(event: H3Event) {
+    const auth = event.headers.get('Authorization')
+    if (!auth) {
+      return null
+    }
+    const match = auth.match(/^Bearer\s+(.+)$/i)
+    const token = match ? match[1] : null
+    return token ? Session.fromToken(token, 'access') : null
+  }
+
+  static fromToken(token: string, kind?: TokenKind) {
+    try {
+      const payload = jwt.verify(token, (kind ?? 'access') === 'access' ? process.env.JWT_ACCESS_SECRET! : process.env.JWT_REFRESH_SECRET!) as JwtPayload
+      if (typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
+        return new Session((payload as Payload).sid, payload.sub)
+      }
+    }
+    catch { /* empty */ }
+    return null
+  }
+
+  generateToken(tokenKind?: TokenKind) {
+    return jwt.sign(
+      { sid: this.id },
+      tokenKind === 'refresh' ? process.env.JWT_REFRESH_SECRET! : process.env.JWT_ACCESS_SECRET!,
+      { subject: this.userId, expiresIn: (tokenKind === 'refresh' ? backendConfig.ttl.refresh : backendConfig.ttl.access) as StringValue | number },
+    )
+  }
+
+  async refresh(refreshToken: string, clientId: string) {
+    const db = useDatabase()
+
+    await db.prepare('BEGIN').run()
+    const rollback = () => db.prepare('ROLLBACK').run()
+    try {
+      await this.revoke(refreshToken, clientId)
+      const result = await Session.initiate(this.userId, clientId)
+      await db.prepare('COMMIT').run()
+      return result
+    }
+    catch (error) {
+      await rollback()
+      throw error
+    }
+  }
+
+  async revoke(refreshToken: string, clientId?: string) {
+    const tokenHash = sha256(refreshToken, process.env.REFRESH_PEPPER)
+    const db = useDatabase()
+    const row = await db
+      .prepare('SELECT clientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
+      .bind(this.id, this.userId, tokenHash)
+      .get()
+
+    if (!row || typeof row !== 'object' || !('clientId' in row)) {
+      throw new InvalidSessionError()
+    }
+
+    if (clientId && row.clientId !== clientId) {
+      throw new InvalidClientIdError()
+    }
+
+    const { success } = await db
+      .prepare('DELETE FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ?')
+      .bind(this.id, this.userId, tokenHash)
+      .run()
+    if (!success) {
+      throw new TokenRevocationError()
+    }
+  }
+}
+
+export class TokensGenerationError extends AppError {
+  constructor() {
+    super('Failed to generate tokens.')
+  }
+}
+
+export class SessionCreationError extends AppError {
+  constructor() {
+    super('Failed to create session.')
+  }
+}
+
+export class InvalidSessionError extends AppError {
+  constructor() {
+    super('Invalid session.')
+  }
+}
+
+export class InvalidClientIdError extends AppError {
+  constructor() {
+    super('Invalid client ID.', 400)
+  }
+}
+
+export class TokenRevocationError extends AppError {
+  constructor() {
+    super('Failed to revoke token.')
+  }
+}

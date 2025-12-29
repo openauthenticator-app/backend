@@ -1,0 +1,26 @@
+{
+  "name": "open-authenticator-backend",
+  "private": true,
+  "scripts": {
+    "build": "nitro build",
+    "dev": "nitro dev",
+    "preview": "node .output/server/index.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@stylistic/eslint-plugin": "^5.6.1",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^7.0.4",
+    "eslint": "^9.39.2",
+    "globals": "^16.5.0",
+    "h3": "^1.15.4",
+    "jiti": "^2.6.1",
+    "nitropack": "^2.12.4",
+    "typescript-eslint": "^8.50.0"
+  },
+  "dependencies": {
+    "arctic": "^3.7.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^7.0.12"
+  }
+}
