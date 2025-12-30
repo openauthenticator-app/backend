@@ -25,7 +25,7 @@ export class Session {
     const db = useDatabase()
     const { success } = await db
       .prepare('INSERT INTO sessions (sessionId, userId, clientId, tokenHash) VALUES (?, ?, ?, ?)')
-      .bind(session.id, userId, clientId, sha256(refreshToken, process.env.REFRESH_PEPPER))
+      .bind(session.id, userId, clientId, sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper))
       .run()
 
     if (!success) {
@@ -39,7 +39,7 @@ export class Session {
   }
 
   static fromAuthorizationHeader(event: H3Event) {
-    const auth = event.headers.get('Authorization')
+    const auth = getHeader(event, 'Authorization')
     if (!auth) {
       return null
     }
@@ -50,7 +50,7 @@ export class Session {
 
   static fromToken(token: string, kind?: TokenKind) {
     try {
-      const payload = jwt.verify(token, (kind ?? 'access') === 'access' ? process.env.JWT_ACCESS_SECRET! : process.env.JWT_REFRESH_SECRET!) as JwtPayload
+      const payload = jwt.verify(token, kind === 'refresh' ? backendConfig.jwtSecrets.refresh : backendConfig.jwtSecrets.access) as JwtPayload
       if (typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
         return new Session((payload as Payload).sid, payload.sub)
       }
@@ -62,7 +62,7 @@ export class Session {
   generateToken(tokenKind?: TokenKind) {
     return jwt.sign(
       { sid: this.id },
-      tokenKind === 'refresh' ? process.env.JWT_REFRESH_SECRET! : process.env.JWT_ACCESS_SECRET!,
+      tokenKind === 'refresh' ? backendConfig.jwtSecrets.refresh : backendConfig.jwtSecrets.access,
       { subject: this.userId, expiresIn: (tokenKind === 'refresh' ? backendConfig.ttl.refresh : backendConfig.ttl.access) as StringValue | number },
     )
   }
@@ -85,7 +85,7 @@ export class Session {
   }
 
   async revoke(refreshToken: string, clientId?: string) {
-    const tokenHash = sha256(refreshToken, process.env.REFRESH_PEPPER)
+    const tokenHash = sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper)
     const db = useDatabase()
     const row = await db
       .prepare('SELECT clientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')

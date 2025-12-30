@@ -9,6 +9,11 @@ export class AppleProvider extends OAuthProvider {
 
   constructor() {
     super('apple', false)
+    assert(!!backendConfig.authProviders.apple.pemCertificate, 'Missing Apple PEM certificate.')
+    assert(!!backendConfig.authProviders.apple.clientId, 'Missing Apple client ID.')
+    assert(!!backendConfig.authProviders.apple.teamId, 'Missing Apple team ID.')
+    assert(!!backendConfig.authProviders.apple.keyId, 'Missing Apple key ID.')
+
     const privateKey = encoding.decodeBase64IgnorePadding(
       backendConfig.authProviders.apple.pemCertificate
         .replace('-----BEGIN PRIVATE KEY-----', '')

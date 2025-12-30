@@ -19,6 +19,7 @@
     "typescript-eslint": "^8.50.0"
   },
   "dependencies": {
+    "@puzzmo/revenue-cat-webhook-types": "^1.1.0",
     "arctic": "^3.7.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^7.0.12"

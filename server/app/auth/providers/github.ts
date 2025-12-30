@@ -6,6 +6,8 @@ export class GithubProvider extends OAuthProvider {
 
   constructor() {
     super('github', false)
+    assert(!!backendConfig.authProviders.github.clientId, 'Missing GitHub client ID.')
+    assert(!!backendConfig.authProviders.github.clientSecret, 'Missing GitHub client secret.')
     this.github = new arctic.GitHub(
       backendConfig.authProviders.github.clientId,
       backendConfig.authProviders.github.clientSecret,

@@ -9,5 +9,5 @@ dist
 .env.local
 bruno
 server/reset.ts
-backend.config.ts
+backend.config.dev.ts
 package-lock.json
