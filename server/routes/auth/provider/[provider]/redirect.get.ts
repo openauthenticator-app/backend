@@ -1,5 +1,6 @@
-import { type AuthProvider } from '~/app'
+import { ProviderEvent } from '~/app'
 
 export default defineEventHandler(async (event) => {
-  return await (event.context.authProvider as AuthProvider).redirect(event)
+  const providerEvent = event as ProviderEvent
+  return await providerEvent.context.authProvider.redirect(providerEvent)
 })

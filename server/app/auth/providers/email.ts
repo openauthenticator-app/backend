@@ -1,14 +1,13 @@
-import { H3Event } from 'h3'
 import { AuthProvider, InvalidCodeError, type Mode, ProviderAlreadyLinkedError } from '~/app/auth/providers/provider'
 import crypto from 'node:crypto'
-import { AppError } from '~/app'
+import { AppError, AppProviderEvent, ProviderEvent } from '~/app'
 
 export class EmailProvider extends AuthProvider {
   constructor() {
     super('email')
   }
 
-  public override async redirect(event: H3Event): ReturnType<typeof sendRedirect> {
+  public override async redirect(event: AppProviderEvent): ReturnType<typeof sendRedirect> {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -131,7 +130,7 @@ export class EmailProvider extends AuthProvider {
       .run()
   }
 
-  public override async callback(event: H3Event): Promise<void> {
+  public override async callback(event: ProviderEvent): Promise<void> {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -181,7 +180,7 @@ export class EmailProvider extends AuthProvider {
     return await this.redirectIntoApp(event, emailAuthorizationCode, { email })
   }
 
-  protected override async validateLogin(event: H3Event) {
+  protected override async validateLogin(event: AppProviderEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false

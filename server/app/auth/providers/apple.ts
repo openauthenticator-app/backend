@@ -2,7 +2,7 @@ import * as arctic from 'arctic'
 import { CookieSerializeOptions } from 'cookie-es'
 import * as encoding from '@oslojs/encoding'
 import { OAuthProvider } from '~/app/auth/providers/provider'
-import { H3Event } from 'h3'
+import { ProviderEvent } from '~/app/event'
 
 export class AppleProvider extends OAuthProvider {
   private apple: arctic.Apple
@@ -38,7 +38,7 @@ export class AppleProvider extends OAuthProvider {
     }
   }
 
-  protected override async validateCallbackQueryParameters(event: H3Event, validator: (query: unknown) => boolean): Promise<{ code: string, state: string, mode?: 'login' | 'link' }> {
+  protected override async validateCallbackQueryParameters(event: ProviderEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string, mode?: 'login' | 'link' }> {
     const query = await readValidatedBody<{ code: string, state: string, mode?: 'login' | 'link' }>(event, validator)
     return { code: query.code, state: query.state, mode: query.mode }
   }

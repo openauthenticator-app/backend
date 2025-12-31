@@ -15,7 +15,7 @@ export class Session {
     this.userId = userId
   }
 
-  static async initiate(userId: string, clientId: string) {
+  static async initiate(userId: string, appClientId: string) {
     const session = new Session(generateRandomString(), userId)
     const accessToken = session.generateToken('access')
     const refreshToken = session.generateToken('refresh')
@@ -24,8 +24,8 @@ export class Session {
     }
     const db = useDatabase()
     const { success } = await db
-      .prepare('INSERT INTO sessions (sessionId, userId, clientId, tokenHash) VALUES (?, ?, ?, ?)')
-      .bind(session.id, userId, clientId, sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper))
+      .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash) VALUES (?, ?, ?, ?)')
+      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper))
       .run()
 
     if (!success) {
@@ -67,14 +67,14 @@ export class Session {
     )
   }
 
-  async refresh(refreshToken: string, clientId: string) {
+  async refresh(refreshToken: string, appClientId: string) {
     const db = useDatabase()
 
     await db.prepare('BEGIN').run()
     const rollback = () => db.prepare('ROLLBACK').run()
     try {
-      await this.revoke(refreshToken, clientId)
-      const result = await Session.initiate(this.userId, clientId)
+      await this.revoke(refreshToken, appClientId)
+      const result = await Session.initiate(this.userId, appClientId)
       await db.prepare('COMMIT').run()
       return result
     }
@@ -84,11 +84,11 @@ export class Session {
     }
   }
 
-  async revoke(refreshToken: string, clientId?: string) {
+  async revoke(refreshToken: string, appClientId?: string) {
     const tokenHash = sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper)
     const db = useDatabase()
     const row = await db
-      .prepare('SELECT clientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
+      .prepare('SELECT appClientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
       .bind(this.id, this.userId, tokenHash)
       .get()
 
@@ -96,8 +96,8 @@ export class Session {
       throw new InvalidSessionError()
     }
 
-    if (clientId && (row as { clientId: string }).clientId !== clientId) {
-      throw new InvalidClientIdError()
+    if (appClientId && (row as { appClientId: string }).appClientId !== appClientId) {
+      throw new InvalidAppClientIdError()
     }
 
     const { success } = await db
@@ -128,9 +128,9 @@ export class InvalidSessionError extends AppError {
   }
 }
 
-export class InvalidClientIdError extends AppError {
+export class InvalidAppClientIdError extends AppError {
   constructor() {
-    super('Invalid client ID.', 400)
+    super('Invalid app client ID.', 400)
   }
 }
 

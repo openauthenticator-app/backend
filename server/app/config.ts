@@ -106,7 +106,7 @@ export default {
       secure: true,
       username: process.env.EMAIL_USERNAME,
       password: process.env.EMAIL_PASSWORD,
-      from: process.env.EMAIL_USERNAME!.toString().includes('@') ? process.env.EMAIL_USERNAME : `noreply@${new URL(process.env.URL as string).hostname}`,
+      from: process.env.EMAIL_USERNAME?.toString().includes('@') ? process.env.EMAIL_USERNAME : `noreply@${new URL(process.env.URL as string).hostname}`,
     },
   },
 } satisfies BackendConfig

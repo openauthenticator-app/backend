@@ -6,7 +6,7 @@ import {
   GoogleProvider,
   MicrosoftProvider,
   Session,
-  User
+  User,
 } from '~/app'
 import { H3Event } from 'h3'
 
