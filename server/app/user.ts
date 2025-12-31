@@ -4,11 +4,13 @@ export type ProviderId = OAuthProviderId | 'email'
 export type OAuthProviderId = `${AuthProviderId}Id`
 
 export class User {
-  public id: string
+  public readonly id: string
+  public readonly contributorPlan: boolean
   private readonly providersIds: Partial<Record<ProviderId, string>>
 
-  private constructor(id: string, providersIds: Partial<Record<ProviderId, string>> = {}) {
+  private constructor(id: string, contributorPlan: boolean, providersIds: Partial<Record<ProviderId, string>> = {}) {
     this.id = id
+    this.contributorPlan = contributorPlan
     this.providersIds = providersIds
   }
 
@@ -24,16 +26,16 @@ export class User {
     return Object.keys(this.providersIds).length
   }
 
-  static async createInDatabase(options: Partial<Record<ProviderId, string>>) {
+  static async createInDatabase(providersIds: Partial<Record<ProviderId, string>>, contributorPlan: boolean = false) {
     const userId = generateRandomString()
 
-    const fields: string[] = ['id']
-    const values: string[] = [userId]
+    const fields: string[] = ['id', 'contributorPlan']
+    const values: (string | boolean)[] = [userId, contributorPlan]
 
-    for (const option in options) {
-      const value = options[option as ProviderId]
+    for (const providerId in providersIds) {
+      const value = providersIds[providerId as ProviderId]
       if (value) {
-        fields.push(option)
+        fields.push(providerId)
         values.push(value)
       }
     }
@@ -43,21 +45,19 @@ export class User {
       .prepare(`INSERT INTO users (${fields.join(', ')}) VALUES (${values.map(() => '?').join(', ')})`)
       .bind(...values)
       .run()
-    return success ? new User(userId, options) : null
+    return success ? new User(userId, contributorPlan, providersIds) : null
   }
 
   static async findInDatabase(
-    options: { id?: string } & Partial<Record<ProviderId, string>>,
+    options: Partial<{ id?: string, contributorPlan?: boolean } & Record<ProviderId, string>>,
   ) {
     const conditions: string[] = []
-    const values: string[] = []
+    const values: (string | boolean)[] = []
 
     for (const providerId in options) {
-      const value = options[providerId as ProviderId]
-      if (value) {
-        conditions.push(`${providerId} = ?`)
-        values.push(value)
-      }
+      const value = (options as { [key: string]: string | boolean })[providerId]
+      conditions.push(`${providerId} = ?`)
+      values.push(value)
     }
 
     if (conditions.length === 0) {
@@ -70,11 +70,11 @@ export class User {
       .bind(...values)
       .get()
 
-    if (!row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string') {
+    if (!row || typeof row !== 'object') {
       return null
     }
 
-    const { id, ...unfilteredProvidersIds } = row
+    const { id, contributorPlan, ...unfilteredProvidersIds } = row as { id: string, contributorPlan: boolean } & Record<ProviderId, string | null>
     const providersIds = unfilteredProvidersIds as Record<ProviderId, string | null>
     const filteredProvidersIds: Partial<Record<ProviderId, string>> = {}
     for (const providerId in providersIds) {
@@ -83,19 +83,17 @@ export class User {
         filteredProvidersIds[providerId as ProviderId] = value
       }
     }
-    return new User(id, filteredProvidersIds)
+    return new User(id, contributorPlan, filteredProvidersIds)
   }
 
-  async updateInDatabase(options: Partial<Record<ProviderId, string | null>>) {
+  async updateInDatabase(options: Partial<{ contributorPlan?: boolean } & Record<ProviderId, string | null>>) {
     const fields: string[] = []
-    const values: (string | null)[] = []
+    const values: (string | boolean | null)[] = []
 
     for (const option in options) {
-      const value = options[option as ProviderId]
-      if (typeof value === 'string' || value === null) {
-        fields.push(`${option} = ?`)
-        values.push(value)
-      }
+      const value = (options as { [key: string]: string | boolean })[option]
+      fields.push(`${option} = ?`)
+      values.push(value)
     }
 
     if (fields.length === 0) {

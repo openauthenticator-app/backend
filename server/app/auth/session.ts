@@ -92,11 +92,11 @@ export class Session {
       .bind(this.id, this.userId, tokenHash)
       .get()
 
-    if (!row || typeof row !== 'object' || !('clientId' in row)) {
+    if (!row || typeof row !== 'object') {
       throw new InvalidSessionError()
     }
 
-    if (clientId && row.clientId !== clientId) {
+    if (clientId && (row as { clientId: string }).clientId !== clientId) {
       throw new InvalidClientIdError()
     }
 

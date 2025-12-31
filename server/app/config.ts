@@ -4,7 +4,7 @@ import { CookieSerializeOptions } from 'cookie-es'
 export interface BackendConfig {
   url: string
   enableRegistrations: boolean
-  totpLimit: {
+  totpsLimit: {
     default: number
     contributor: number
   }
@@ -19,6 +19,7 @@ export interface BackendConfig {
     refreshPepper: string
   }
   revenueCat: {
+    contributorPlanEntitlementId?: string
     authorizationHeader?: string
   }
   authProviders: {
@@ -55,7 +56,7 @@ export interface BackendConfig {
 export default {
   url: process.env.URL as string,
   enableRegistrations: true, // TODO
-  totpLimit: {
+  totpsLimit: {
     default: 6,
     contributor: 100,
   },
@@ -76,6 +77,7 @@ export default {
     refreshPepper: process.env.JWT_REFRESH_PEPPER!,
   },
   revenueCat: {
+    contributorPlanEntitlementId: 'contributor_plan',
     authorizationHeader: process.env.REVENUECAT_AUTHORIZATION_HEADER,
   },
   authProviders: {

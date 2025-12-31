@@ -1,5 +1,6 @@
 import type { Storage } from 'unstorage'
 import { User } from '~/app/user'
+import { AppError } from '~/app/error'
 
 interface StorageObject<K extends string, V> {
   key: K
@@ -10,13 +11,15 @@ export type UUID = `${string}-${string}-${string}-${string}-${string}`
 
 export class TotpBucket {
   private readonly storage: Storage<EncryptedTotp>
+  private readonly limit: number
 
-  private constructor(storage: Storage<EncryptedTotp>) {
+  private constructor(storage: Storage<EncryptedTotp>, limit: number) {
     this.storage = storage
+    this.limit = limit
   }
 
   static of(user: User) {
-    return new TotpBucket(useStorage<EncryptedTotp>(user.id))
+    return new TotpBucket(useStorage<EncryptedTotp>(user.id), user.contributorPlan ? backendConfig.totpsLimit.contributor : backendConfig.totpsLimit.default)
   }
 
   public has(uuid: UUID) {
@@ -28,6 +31,13 @@ export class TotpBucket {
   }
 
   public async set(uuid: UUID, record: EncryptedTotp) {
+    const add = !await this.storage.hasItem(uuid)
+    if (add) {
+      const keys = await this.storage.getKeys()
+      if (keys.length >= this.limit) {
+        throw new TooManyTotpsError()
+      }
+    }
     await this.storage.setItem(uuid, record)
   }
 
@@ -41,6 +51,13 @@ export class TotpBucket {
   }
 
   public async setAll(record: Record<UUID, EncryptedTotp>) {
+    const existingKeys = await this.storage.getKeys()
+    const keysToSet = Object.keys(record)
+    const intersection = [...existingKeys].filter(keysToSet.includes).length
+    const newKeys = keysToSet.length - intersection
+    if (existingKeys.length + newKeys > this.limit) {
+      throw new TooManyTotpsError()
+    }
     await this.storage.setItems(this.recordToStorageObjects(record))
   }
 
@@ -101,5 +118,11 @@ export class EncryptedTotp {
     this.label = options.label
     this.issuer = options.issuer
     this.imageUrl = options.imageUrl
+  }
+}
+
+export class TooManyTotpsError extends AppError {
+  constructor() {
+    super('Too many TOTPs.', 403)
   }
 }
