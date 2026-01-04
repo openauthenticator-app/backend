@@ -13,7 +13,6 @@ import { User } from '~/app/user'
 export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
   protected async handle(httpEvent: H3Event, webhookEvent: T): Promise<void> {
     console.log(`Received a RevenueCat webhook event : ${webhookEvent.type}.`)
-    console.log(readBody(httpEvent))
   }
 
   static handle(httpEvent: H3Event, webhookEvent: Webhook['event']) {

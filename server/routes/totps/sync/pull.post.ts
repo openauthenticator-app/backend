@@ -2,7 +2,7 @@ import { H3Event } from 'h3'
 import { EncryptedTotp, TotpBucket, type UserEvent, type UUID } from '~/app'
 
 const validateBody = (body: unknown) => {
-  if (typeof body !== 'object') {
+  if (!body || typeof body !== 'object') {
     return false
   }
   for (const [key, value] of Object.entries(body as object)) {

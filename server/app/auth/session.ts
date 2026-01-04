@@ -60,7 +60,7 @@ export class Session {
       }
       throw new InvalidPayloadError(kind ?? 'access')
     }
-    if (typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
+    if (payload && typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
       return new Session((payload as Payload).sid, payload.sub)
     }
     throw new InvalidTokenError(kind ?? 'access')

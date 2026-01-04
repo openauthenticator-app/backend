@@ -77,8 +77,7 @@ export class EmailProvider extends AuthProvider {
       .bind(email)
       .get()) as DbEmailVerification | undefined
 
-    const url: URL = new URL(`/auth/provider/email/sent`)
-    url.protocol = 'openauthenticator:'
+    const url: URL = new URL(`openauthenticator://auth/provider/email/sent`)
 
     let sendVerificationMail = !emailPendingDbVerification
     if (emailPendingDbVerification) {
@@ -126,7 +125,7 @@ export class EmailProvider extends AuthProvider {
       },
     })
 
-    const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
+    const magicLink: URL = new URL('openauthenticator://auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('code', verificationCode)
     magicLink.searchParams.append('email', email)
     await transporter.sendMail({

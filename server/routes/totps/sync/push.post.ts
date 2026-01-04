@@ -6,7 +6,7 @@ const validateBody = (body: unknown) => {
     return false
   }
   for (const operation of body) {
-    if (typeof operation !== 'object') {
+    if (!operation || typeof operation !== 'object') {
       return false
     }
     if (!('uuid' in operation) || !isValidUUID(operation.uuid)) {
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event: H3Event) => {
   for (const operation of operations) {
     switch (operation.kind) {
       case 'set': {
-        if (typeof operation.jsonPayload !== 'object') {
+        if (!operation || typeof operation.jsonPayload !== 'object') {
           throw new InvalidOperationPayloadError()
         }
         const uuids = Object.keys(operation.jsonPayload as object)

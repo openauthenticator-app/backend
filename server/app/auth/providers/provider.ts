@@ -20,7 +20,7 @@ export abstract class AuthProvider {
   public abstract callback(event: ProviderEvent): ReturnType<typeof this.getCallbackRedirectUrl>
 
   protected async getCallbackRedirectUrl(authorizationCode: string, additionalQueryParams?: Record<string, string>): Promise<URL> {
-    const url: URL = new URL(`/auth/provider/${this.id}/code`)
+    const url: URL = new URL(`openauthenticator://auth/provider/${this.id}/code`)
     url.protocol = 'openauthenticator:'
     url.searchParams.append('authorizationCode', authorizationCode)
     if (additionalQueryParams) {
@@ -113,7 +113,7 @@ export abstract class OAuthProvider extends AuthProvider {
   abstract buildRedirectionUrl(state?: string, codeVerifier?: string): URL
 
   public override async redirect(event: AppProviderEvent) {
-    const validateQuery = (query: unknown): boolean => typeof query === 'object'
+    const validateQuery = (query: unknown): boolean => !!query && typeof query === 'object'
     const { mode } = await getValidatedQuery<{ mode?: Mode }>(event, validateQuery)
     if (mode === 'link') {
       const user = await useUser(event)

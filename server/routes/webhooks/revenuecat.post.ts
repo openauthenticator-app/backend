@@ -1,13 +1,17 @@
 import { AppError, RevenueCatEventHandler } from '~/app'
 import type { Webhook } from '@puzzmo/revenue-cat-webhook-types'
 import type { H3Event } from 'h3'
+import { timingSafeEqual } from 'node:crypto'
 
 export default defineEventHandler(async (event: H3Event) => {
   const expected = backendConfig.revenueCat.authorizationHeader
   assert(!!expected, 'RevenueCat authorization header not configured.')
 
   const auth = getHeader(event, 'Authorization') ?? ''
-  if (auth !== expected) {
+
+  const a = Buffer.from(auth)
+  const b = Buffer.from(expected)
+  if (a.byteLength !== b.byteLength || !timingSafeEqual(a, b)) {
     throw new UnauthorizedError()
   }
 
