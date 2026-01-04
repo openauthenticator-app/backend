@@ -16,4 +16,9 @@ export default defineNitroConfig({
       },
     ],
   },
+  sourceMap: true,
+  errorHandler: '~/error',
+  prerender: {
+    routes: ['/'],
+  },
 })

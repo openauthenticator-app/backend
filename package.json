@@ -12,6 +12,7 @@
     "@stylistic/eslint-plugin": "^5.6.1",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/nodemailer": "^7.0.4",
+    "@types/semver": "^7.7.1",
     "eslint": "^9.39.2",
     "globals": "^16.5.0",
     "h3": "^1.15.4",
@@ -21,8 +22,11 @@
   },
   "dependencies": {
     "@puzzmo/revenue-cat-webhook-types": "^1.1.0",
+    "@sentry/node": "^10.32.1",
+    "@sentry/profiling-node": "^10.32.1",
     "arctic": "^3.7.0",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^7.0.12"
+    "nodemailer": "^7.0.12",
+    "semver": "^7.7.3"
   }
 }

@@ -97,6 +97,7 @@ export class EncryptedTotp {
   public readonly label: Uint8Array
   public readonly issuer: Uint8Array
   public readonly imageUrl?: Uint8Array
+  public readonly updatedAt: number
 
   private constructor(
     options: {
@@ -108,6 +109,7 @@ export class EncryptedTotp {
       label: Uint8Array
       issuer: Uint8Array
       imageUrl?: Uint8Array
+      updatedAt: number
     },
   ) {
     this.algorithm = options.algorithm
@@ -118,11 +120,12 @@ export class EncryptedTotp {
     this.label = options.label
     this.issuer = options.issuer
     this.imageUrl = options.imageUrl
+    this.updatedAt = options.updatedAt
   }
 }
 
-export class TooManyTotpsError extends AppError {
+class TooManyTotpsError extends AppError {
   constructor() {
-    super('Too many TOTPs.', 403)
+    super('Too many TOTPs.', TooManyTotpsError, 403)
   }
 }

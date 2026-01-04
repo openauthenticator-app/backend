@@ -4,6 +4,7 @@ import { AppError } from '~/app/error'
 import { Session } from '~/app/auth/session'
 import { User } from '~/app/user'
 import { AppProviderEvent, ProviderEvent } from '~/app/event'
+import { useUser } from '~/utils/user'
 
 export type Mode = 'login' | 'link'
 
@@ -14,11 +15,11 @@ export abstract class AuthProvider {
     this.id = id
   }
 
-  public abstract redirect(event: AppProviderEvent): Promise<void>
+  public abstract redirect(event: AppProviderEvent): Promise<URL>
 
-  public abstract callback(event: ProviderEvent): ReturnType<typeof this.redirectIntoApp>
+  public abstract callback(event: ProviderEvent): ReturnType<typeof this.getCallbackRedirectUrl>
 
-  protected redirectIntoApp(event: ProviderEvent, authorizationCode: string, additionalQueryParams?: Record<string, string>) {
+  protected async getCallbackRedirectUrl(authorizationCode: string, additionalQueryParams?: Record<string, string>): Promise<URL> {
     const url: URL = new URL(`/auth/provider/${this.id}/code`)
     url.protocol = 'openauthenticator:'
     url.searchParams.append('authorizationCode', authorizationCode)
@@ -27,26 +28,29 @@ export abstract class AuthProvider {
         url.searchParams.append(key, value)
       }
     }
-    return sendRedirect(event, url.toString())
+    return url
   }
 
   public async login(event: AppProviderEvent): ReturnType<typeof this.finishLogin> {
-    const providerId = await this.validateLogin(event)
-    return await this.finishLogin(event, providerId)
+    const providerUserId = await this.validateLogin(event)
+    return await this.finishLogin(event, providerUserId)
   }
 
   public async link(event: AppProviderEvent): ReturnType<typeof this.finishLink> {
-    const providerId = await this.validateLogin(event)
-    return await this.finishLink(event, providerId)
+    const providerUserId = await this.validateLogin(event)
+    return await this.finishLink(event, providerUserId)
   }
 
   protected abstract validateLogin(event: AppProviderEvent): Promise<string>
 
-  protected async finishLogin(event: AppProviderEvent, providerId: string): Promise<{ accessToken: string, refreshToken: string }> {
+  protected async finishLogin(event: AppProviderEvent, providerUserId: string): Promise<{ accessToken: string, refreshToken: string }> {
     const idInUser = User.getAuthProviderFieldName(this)
-    let user = await User.findInDatabase({ [idInUser]: providerId })
+    let user = await User.findInDatabase({ [idInUser]: providerUserId })
     if (!user) {
-      user = await User.createInDatabase({ [idInUser]: providerId })
+      if (!backendConfig.enableRegistrations) {
+        throw new RegistrationsDisabledError()
+      }
+      user = await User.createInDatabase({ [idInUser]: providerUserId })
       if (!user) {
         throw new UserCreationFailedError()
       }
@@ -58,17 +62,24 @@ export abstract class AuthProvider {
     }
   }
 
-  protected async finishLink(event: AppProviderEvent, providerId: string): Promise<void> {
+  protected async finishLink(event: AppProviderEvent, providerUserId: string): Promise<{ userId: string, providerUserId: string }> {
     const currentUser = await useUser(event)
     const idInUser = User.getAuthProviderFieldName(this)
-    const existingUser = await User.findInDatabase({ [idInUser]: providerId })
+    const existingUser = await User.findInDatabase({ [idInUser]: providerUserId })
     if (existingUser?.id === currentUser.id) {
-      return
+      return {
+        userId: currentUser.id,
+        providerUserId,
+      }
     }
     if (existingUser) {
       throw new ProviderUserAlreadyExistsError()
     }
-    await currentUser?.updateInDatabase({ [idInUser]: providerId })
+    await currentUser?.updateInDatabase({ [idInUser]: providerUserId })
+    return {
+      userId: currentUser.id,
+      providerUserId,
+    }
   }
 
   public async unlink(event: AppProviderEvent): Promise<void> {
@@ -95,11 +106,7 @@ export abstract class OAuthProvider extends AuthProvider {
 
   protected createCookieOptions(): CookieSerializeOptions {
     return {
-      path: backendConfig.cookies.path,
-      httpOnly: backendConfig.cookies.httpOnly,
-      secure: backendConfig.cookies.secure,
-      maxAge: backendConfig.cookies.maxAge,
-      sameSite: backendConfig.cookies.sameSite as CookieSerializeOptions['sameSite'],
+      ...backendConfig.authentication.cookiesOptions,
     }
   }
 
@@ -122,7 +129,7 @@ export abstract class OAuthProvider extends AuthProvider {
       codeVerifier = arctic.generateCodeVerifier()
       setCookie(event, `${this.id}_auth_code_verifier`, codeVerifier, cookieOptions)
     }
-    return await sendRedirect(event, this.buildRedirectionUrl(state, codeVerifier).toString())
+    return this.buildRedirectionUrl(state, codeVerifier)
   }
 
   protected async validateCallbackQueryParameters(event: ProviderEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string }> {
@@ -156,7 +163,7 @@ export abstract class OAuthProvider extends AuthProvider {
     if (this.needsCodeVerifier) {
       deleteCookie(event, `${this.id}_auth_code_verifier`)
     }
-    return await this.redirectIntoApp(event, parameters.code, this.needsCodeVerifier ? { codeVerifier: codeVerifier! } : undefined)
+    return this.getCallbackRedirectUrl(parameters.code, this.needsCodeVerifier ? { codeVerifier: codeVerifier! } : undefined)
   }
 
   protected abstract validateAuthorizationCode(code: string, codeVerifier?: string): Promise<arctic.OAuth2Tokens>
@@ -189,56 +196,62 @@ export abstract class OAuthProvider extends AuthProvider {
   }
 }
 
+class RegistrationsDisabledError extends AppError {
+  constructor() {
+    super('Registrations are disabled.', RegistrationsDisabledError, 403)
+  }
+}
+
 export class ProviderAlreadyLinkedError extends AppError {
   constructor() {
-    super('Provider already linked.', 400)
+    super('Provider already linked.', ProviderAlreadyLinkedError, 400)
   }
 }
 
-export class NoCodeVerifierFoundError extends AppError {
+class NoCodeVerifierFoundError extends AppError {
   constructor() {
-    super('No code verifier found.', 401)
+    super('No code verifier found.', NoCodeVerifierFoundError, 401)
   }
 }
 
-export class NoStateFoundError extends AppError {
+class NoStateFoundError extends AppError {
   constructor() {
-    super('No state found.', 401)
+    super('No state found.', NoStateFoundError, 401)
   }
 }
 
-export class InvalidStateError extends AppError {
+class InvalidStateError extends AppError {
   constructor() {
-    super('Invalid state.', 400)
+    super('Invalid state.', InvalidStateError, 400)
   }
 }
 
 export class InvalidCodeError extends AppError {
   constructor() {
-    super('Invalid code.', 400)
+    super('Invalid code.', InvalidCodeError, 400)
   }
 }
 
-export class IdTokenDecodeFailedError extends AppError {
+class IdTokenDecodeFailedError extends AppError {
   constructor() {
-    super('Failed to decode ID token.')
+    super('Failed to decode ID token.', IdTokenDecodeFailedError)
   }
 }
 
-export class UserCreationFailedError extends AppError {
+class UserCreationFailedError extends AppError {
   constructor() {
-    super('Failed to create user.')
+    super('Failed to create user.', UserCreationFailedError)
   }
 }
 
-export class ProviderUserAlreadyExistsError extends AppError {
+class ProviderUserAlreadyExistsError extends AppError {
   constructor() {
-    super('An user with this provider already exists.', 400)
+    super('An user with this provider already exists.', ProviderUserAlreadyExistsError, 400)
   }
 }
 
-export class CannotUnlinkLastProviderError extends AppError {
+class CannotUnlinkLastProviderError extends AppError {
   constructor() {
-    super('You cannot unlink the last provider linked to this account.', 400)
+    super('You cannot unlink the last provider linked to this account.', CannotUnlinkLastProviderError, 400)
   }
 }

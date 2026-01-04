@@ -1,4 +1,5 @@
 import { Session } from '~/app'
+import type { H3Event } from 'h3'
 
 const validateBody = (body: unknown): boolean => {
   if (!body || typeof body !== 'object') {
@@ -7,15 +8,8 @@ const validateBody = (body: unknown): boolean => {
   return 'refreshToken' in body && typeof body.refreshToken === 'string'
 }
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
   const { refreshToken } = await readValidatedBody<{ refreshToken: string }>(event, validateBody)
-  const session = Session.fromToken(refreshToken, 'refresh')
-  if (!session) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Invalid refresh token.',
-    })
-  }
-  await session.revoke(refreshToken)
-  return noError()
+  await Session.fromToken(refreshToken, 'refresh').revoke(refreshToken)
+  return SuccessObject.fromData()
 })

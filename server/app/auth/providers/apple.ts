@@ -9,13 +9,13 @@ export class AppleProvider extends OAuthProvider {
 
   constructor() {
     super('apple', false)
-    assert(!!backendConfig.authProviders.apple.pemCertificate, 'Missing Apple PEM certificate.')
-    assert(!!backendConfig.authProviders.apple.clientId, 'Missing Apple client ID.')
-    assert(!!backendConfig.authProviders.apple.teamId, 'Missing Apple team ID.')
-    assert(!!backendConfig.authProviders.apple.keyId, 'Missing Apple key ID.')
+    assert(!!backendConfig.authentication.providers.apple.pemCertificate, 'Missing Apple PEM certificate.')
+    assert(!!backendConfig.authentication.providers.apple.clientId, 'Missing Apple client ID.')
+    assert(!!backendConfig.authentication.providers.apple.teamId, 'Missing Apple team ID.')
+    assert(!!backendConfig.authentication.providers.apple.keyId, 'Missing Apple key ID.')
 
     const privateKey = encoding.decodeBase64IgnorePadding(
-      backendConfig.authProviders.apple.pemCertificate
+      backendConfig.authentication.providers.apple.pemCertificate
         .replace('-----BEGIN PRIVATE KEY-----', '')
         .replace('-----END PRIVATE KEY-----', '')
         .replaceAll('\r', '')
@@ -23,9 +23,9 @@ export class AppleProvider extends OAuthProvider {
         .trim(),
     )
     this.apple = new arctic.Apple(
-      backendConfig.authProviders.apple.clientId,
-      backendConfig.authProviders.apple.teamId,
-      backendConfig.authProviders.apple.keyId,
+      backendConfig.authentication.providers.apple.clientId,
+      backendConfig.authentication.providers.apple.teamId,
+      backendConfig.authentication.providers.apple.keyId,
       privateKey,
       `${backendConfig.url}/auth/provider/apple/callback`,
     )

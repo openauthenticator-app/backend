@@ -25,7 +25,7 @@ export class Session {
     const db = useDatabase()
     const { success } = await db
       .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash) VALUES (?, ?, ?, ?)')
-      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper))
+      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper))
       .run()
 
     if (!success) {
@@ -40,30 +40,37 @@ export class Session {
 
   static fromAuthorizationHeader(event: H3Event) {
     const auth = getHeader(event, 'Authorization')
-    if (!auth) {
-      return null
-    }
+    assert(!!auth, new MissingAuthorizationHeaderError())
     const match = auth.match(/^Bearer\s+(.+)$/i)
     const token = match ? match[1] : null
-    return token ? Session.fromToken(token, 'access') : null
+    if (!token) {
+      throw new MalformedAuthorizationHeaderError()
+    }
+    return Session.fromToken(token, 'access')
   }
 
   static fromToken(token: string, kind?: TokenKind) {
+    let payload
     try {
-      const payload = jwt.verify(token, kind === 'refresh' ? backendConfig.jwtSecrets.refresh : backendConfig.jwtSecrets.access) as JwtPayload
-      if (typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
-        return new Session((payload as Payload).sid, payload.sub)
-      }
+      payload = jwt.verify(token, kind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access) as JwtPayload
     }
-    catch { /* empty */ }
-    return null
+    catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new ExpiredSessionError()
+      }
+      throw new InvalidPayloadError(kind ?? 'access')
+    }
+    if (typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
+      return new Session((payload as Payload).sid, payload.sub)
+    }
+    throw new InvalidTokenError(kind ?? 'access')
   }
 
   generateToken(tokenKind?: TokenKind) {
     return jwt.sign(
       { sid: this.id },
-      tokenKind === 'refresh' ? backendConfig.jwtSecrets.refresh : backendConfig.jwtSecrets.access,
-      { subject: this.userId, expiresIn: (tokenKind === 'refresh' ? backendConfig.ttl.refresh : backendConfig.ttl.access) as StringValue | number },
+      tokenKind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access,
+      { subject: this.userId, expiresIn: (tokenKind === 'refresh' ? backendConfig.authentication.tokensTtl.refresh : backendConfig.authentication.tokensTtl.access) as StringValue | number },
     )
   }
 
@@ -85,18 +92,18 @@ export class Session {
   }
 
   async revoke(refreshToken: string, appClientId?: string) {
-    const tokenHash = sha256(refreshToken, backendConfig.jwtSecrets.refreshPepper)
+    const tokenHash = sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper)
     const db = useDatabase()
-    const row = await db
+    const dbSession = (await db
       .prepare('SELECT appClientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
       .bind(this.id, this.userId, tokenHash)
-      .get()
+      .get()) as DbSession | undefined
 
-    if (!row || typeof row !== 'object') {
+    if (!dbSession) {
       throw new InvalidSessionError()
     }
 
-    if (appClientId && (row as { appClientId: string }).appClientId !== appClientId) {
+    if (appClientId && dbSession.appClientId !== appClientId) {
       throw new InvalidAppClientIdError()
     }
 
@@ -110,32 +117,69 @@ export class Session {
   }
 }
 
-export class TokensGenerationError extends AppError {
+interface DbSession {
+  sessionId: string
+  userId: string
+  appClientId: string
+  tokenHash: string
+}
+
+class MissingAuthorizationHeaderError extends AppError {
   constructor() {
-    super('Failed to generate tokens.')
+    super('Missing Authorization header.', MissingAuthorizationHeaderError, 401)
   }
 }
 
-export class SessionCreationError extends AppError {
+class MalformedAuthorizationHeaderError extends AppError {
   constructor() {
-    super('Failed to create session.')
+    super('Malformed Authorization header.', MalformedAuthorizationHeaderError, 400)
   }
 }
 
-export class InvalidSessionError extends AppError {
+class TokensGenerationError extends AppError {
   constructor() {
-    super('Invalid session.')
+    super('Failed to generate tokens.', TokensGenerationError)
   }
 }
 
-export class InvalidAppClientIdError extends AppError {
+class SessionCreationError extends AppError {
   constructor() {
-    super('Invalid app client ID.', 400)
+    super('Failed to create session.', SessionCreationError)
   }
 }
 
-export class TokenRevocationError extends AppError {
+class InvalidSessionError extends AppError {
   constructor() {
-    super('Failed to revoke token.')
+    super('Invalid session.', InvalidSessionError)
+  }
+}
+
+class ExpiredSessionError extends AppError {
+  constructor() {
+    super('Session expired.', ExpiredSessionError, 401)
+  }
+}
+
+class InvalidPayloadError extends AppError {
+  constructor(kind: TokenKind) {
+    super(`Invalid ${kind} token payload.`, InvalidTokenError, 400)
+  }
+}
+
+class InvalidTokenError extends AppError {
+  constructor(kind: TokenKind) {
+    super(`Invalid token : ${kind}.`, InvalidTokenError, 400)
+  }
+}
+
+class InvalidAppClientIdError extends AppError {
+  constructor() {
+    super('Invalid app client ID.', InvalidAppClientIdError, 400)
+  }
+}
+
+class TokenRevocationError extends AppError {
+  constructor() {
+    super('Failed to revoke token.', TokenRevocationError)
   }
 }

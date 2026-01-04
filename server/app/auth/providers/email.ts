@@ -1,13 +1,39 @@
 import { AuthProvider, InvalidCodeError, type Mode, ProviderAlreadyLinkedError } from '~/app/auth/providers/provider'
+import { AppProviderEvent, ProviderEvent } from '~/app/event'
+import { AppError } from '~/app/error'
 import crypto from 'node:crypto'
-import { AppError, AppProviderEvent, ProviderEvent } from '~/app'
 
 export class EmailProvider extends AuthProvider {
   constructor() {
     super('email')
   }
 
-  public override async redirect(event: AppProviderEvent): ReturnType<typeof sendRedirect> {
+  public async cancel(event: AppProviderEvent) {
+    const validateBody = (query: unknown): boolean => {
+      if (!query || typeof query !== 'object') {
+        return false
+      }
+      if (!('cancelCode' in query) || typeof query.cancelCode !== 'string') {
+        return false
+      }
+      if (!('email' in query) || typeof query.email !== 'string') {
+        return false
+      }
+      return isValidEmail(query.email)
+    }
+    const { email, cancelCode } = await getValidatedQuery<{ email: string, cancelCode: string }>(event, validateBody)
+    const db = useDatabase()
+    const verification = (await db
+      .prepare('SELECT * FROM emailVerifications WHERE email = ? AND cancelCode = ? LIMIT 1')
+      .bind(email, cancelCode)
+      .get()) as DbEmailVerification | undefined
+    if (!verification) {
+      throw new InvalidCodeError()
+    }
+    await this.deleteVerification(email, { cancelCode })
+  }
+
+  public override async redirect(event: AppProviderEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -23,66 +49,80 @@ export class EmailProvider extends AuthProvider {
     const { email: unnormalizedEmail, mode } = await getValidatedQuery<{ email: string, mode: Mode }>(event, validateBody)
     const email = unnormalizedEmail.toLowerCase().trim()
 
+    let userId: string | null = null
     if (mode === 'link') {
       const user = await useUser(event)
       if (user.hasProvider(this)) {
         throw new ProviderAlreadyLinkedError()
       }
+      userId = user.id
     }
 
     const db = useDatabase()
-    const existingVerification = await db
+    if (userId) {
+      const userPendingDbVerification = (await db
+        .prepare('SELECT * FROM emailVerifications WHERE userId = ? LIMIT 1')
+        .bind(userId)
+        .get()) as DbEmailVerification | undefined
+      if (userPendingDbVerification) {
+        if (!this.hasExpired(userPendingDbVerification)) {
+          throw new UserHasPendingVerificationError()
+        }
+        await this.deleteVerification(userPendingDbVerification.email, { userId })
+      }
+    }
+
+    const emailPendingDbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? LIMIT 1')
       .bind(email)
-      .get()
+      .get()) as DbEmailVerification | undefined
 
     const url: URL = new URL(`/auth/provider/email/sent`)
     url.protocol = 'openauthenticator:'
 
-    let sendVerificationMail = !existingVerification
-    if (existingVerification) {
-      url.searchParams.append('existingVerification', 'true')
+    let sendVerificationMail = !emailPendingDbVerification
+    if (emailPendingDbVerification) {
+      url.searchParams.append('previously', 'true')
 
-      if (typeof existingVerification !== 'object' || !('verificationCodeExpiration' in existingVerification) || typeof existingVerification.verificationCodeExpiration !== 'number') {
+      if (this.hasExpired(emailPendingDbVerification)) {
         await this.deleteVerification(email)
         sendVerificationMail = true
       }
-      else {
-        const expiration = new Date(existingVerification.verificationCodeExpiration as number)
-        if (expiration < new Date()) {
-          await this.deleteVerification(email)
-          sendVerificationMail = true
-        }
-      }
     }
     if (sendVerificationMail) {
-      const alphabet = '0123456789ABCDEFGHIJLMNOPQRSTUVWXYZ'
-      let verificationCode = ''
-      for (let i = 0; i < 6; i++) {
-        verificationCode += alphabet[crypto.randomInt(alphabet.length)]
+      const generateCode = () => {
+        const alphabet = '0123456789ABCDEFGHIJLMNOPQRSTUVWXYZ'
+        let result = ''
+        for (let i = 0; i < 6; i++) {
+          result += alphabet[crypto.randomInt(alphabet.length)]
+        }
+        return result
       }
+
+      const verificationCode = generateCode()
       const verificationCodeExpiration = Date.now() + 10 * 60 * 1000
+      const cancelCode = generateRandomString()
 
       await db
-        .prepare('INSERT INTO emailVerifications (email, verificationCode, verificationCodeExpiration) VALUES (?, ?, ?)')
-        .bind(email, verificationCode, verificationCodeExpiration)
+        .prepare('INSERT INTO emailVerifications (email, userId, verificationCode, verificationCodeExpiration, cancelCode) VALUES (?, ?, ?, ?, ?)')
+        .bind(email, userId, verificationCode, verificationCodeExpiration, cancelCode)
         .run()
 
       await this.sendEmail(email, verificationCode)
     }
-    return sendRedirect(event, url.toString())
+    return url
   }
 
   private async sendEmail(email: string, verificationCode: string) {
     const nodemailer = await import('nodemailer')
 
     const transporter = nodemailer.createTransport({
-      host: backendConfig.authProviders.email.host,
-      port: backendConfig.authProviders.email.port,
-      secure: backendConfig.authProviders.email.secure,
+      host: backendConfig.authentication.providers.email.host,
+      port: backendConfig.authentication.providers.email.port,
+      secure: backendConfig.authentication.providers.email.secure,
       auth: {
-        user: backendConfig.authProviders.email.username,
-        pass: backendConfig.authProviders.email.password,
+        user: backendConfig.authentication.providers.email.username,
+        pass: backendConfig.authentication.providers.email.password,
       },
     })
 
@@ -90,7 +130,7 @@ export class EmailProvider extends AuthProvider {
     magicLink.searchParams.append('code', verificationCode)
     magicLink.searchParams.append('email', email)
     await transporter.sendMail({
-      from: backendConfig.authProviders.email.from,
+      from: backendConfig.authentication.providers.email.from,
       to: email,
       subject: 'Login to Open Authenticator',
       html: `
@@ -112,25 +152,7 @@ export class EmailProvider extends AuthProvider {
     })
   }
 
-  private deleteVerification(email: string, options: { verificationCode?: string, authorizationCode?: string } = {}) {
-    const db = useDatabase()
-    const fields = ['email']
-    const values = [email]
-    if (options.verificationCode) {
-      fields.push('verificationCode')
-      values.push(options.verificationCode)
-    }
-    if (options.authorizationCode) {
-      fields.push('authorizationCode')
-      values.push(options.authorizationCode)
-    }
-    return db
-      .prepare(`DELETE FROM emailVerifications WHERE ${fields.join(' = ? AND ')} = ?`)
-      .bind(...values)
-      .run()
-  }
-
-  public override async callback(event: ProviderEvent): Promise<void> {
+  public override async callback(event: ProviderEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -146,22 +168,16 @@ export class EmailProvider extends AuthProvider {
     const { email, code } = await getValidatedQuery<{ email: string, code: string }>(event, validateBody)
 
     const db = useDatabase()
-    const verification = await db
+    const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND verificationCode = ? LIMIT 1')
       .bind(email, code)
-      .get()
+      .get()) as DbEmailVerification | undefined
 
-    if (!verification) {
+    if (!dbVerification) {
       throw new InvalidCodeError()
     }
 
-    if (typeof verification !== 'object' || !('verificationCodeExpiration' in verification) || typeof verification.verificationCodeExpiration !== 'number') {
-      await this.deleteVerification(email, { verificationCode: code })
-      throw new InvalidCodeError()
-    }
-
-    const verificationCodeExpiration = new Date(verification.verificationCodeExpiration as number)
-    if (verificationCodeExpiration < new Date()) {
+    if (this.hasExpired(dbVerification)) {
       await this.deleteVerification(email, { verificationCode: code })
       throw new ExpiredCodeError()
     }
@@ -177,7 +193,7 @@ export class EmailProvider extends AuthProvider {
       throw new TokenCreationFailedError()
     }
 
-    return await this.redirectIntoApp(event, emailAuthorizationCode, { email })
+    return this.getCallbackRedirectUrl(emailAuthorizationCode, { email })
   }
 
   protected override async validateLogin(event: AppProviderEvent) {
@@ -195,21 +211,15 @@ export class EmailProvider extends AuthProvider {
     }
     const { authorizationCode, email } = await readValidatedBody<{ authorizationCode: string, email: string }>(event, validateBody)
     const db = useDatabase()
-    const verification = await db
+    const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE authorizationCode = ? AND email = ? LIMIT 1')
       .bind(authorizationCode, email)
-      .get()
-    if (!verification) {
+      .get()) as DbEmailVerification | undefined
+    if (!dbVerification) {
       throw new InvalidCodeError()
     }
 
-    if (typeof verification !== 'object' || !('authorizationCodeExpiration' in verification) || typeof verification.authorizationCodeExpiration !== 'number') {
-      await this.deleteVerification(email, { authorizationCode })
-      throw new InvalidCodeError()
-    }
-
-    const authorizationCodeExpiration = new Date(verification.authorizationCodeExpiration as number)
-    if (authorizationCodeExpiration < new Date()) {
+    if (this.hasExpired(dbVerification)) {
       await this.deleteVerification(email, { authorizationCode })
       throw new ExpiredCodeError()
     }
@@ -217,16 +227,75 @@ export class EmailProvider extends AuthProvider {
     await this.deleteVerification(email, { authorizationCode })
     return email
   }
-}
 
-export class ExpiredCodeError extends AppError {
-  constructor() {
-    super('Your code has expired. Please try again.', 400)
+  private hasExpired(verification: DbEmailVerification, code?: 'verification' | 'authorization') {
+    const hasVerificationExpired = verification.verificationCodeExpiration !== null && verification.verificationCodeExpiration < Date.now()
+    const hasAuthorizationExpired = verification.authorizationCodeExpiration !== null && verification.authorizationCodeExpiration < Date.now()
+    if (!code) {
+      return hasVerificationExpired || hasAuthorizationExpired
+    }
+    return code === 'verification' ? hasVerificationExpired : hasAuthorizationExpired
+  }
+
+  private async deleteVerification(email: string, options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string } = {}) {
+    const db = useDatabase()
+    const fields = ['email']
+    const values = [email]
+    if (options.verificationCode) {
+      fields.push('verificationCode')
+      values.push(options.verificationCode)
+    }
+    if (options.authorizationCode) {
+      fields.push('authorizationCode')
+      values.push(options.authorizationCode)
+    }
+    if (options.userId) {
+      fields.push('userId')
+      values.push(options.userId)
+    }
+    if (options.cancelCode) {
+      fields.push('cancelCode')
+      values.push(options.cancelCode)
+    }
+    const { success } = await db
+      .prepare(`DELETE FROM emailVerifications WHERE ${fields.join(' = ? AND ')} = ?`)
+      .bind(...values)
+      .run()
+    if (!success) {
+      throw new DeleteVerificationFailedError()
+    }
   }
 }
 
-export class TokenCreationFailedError extends AppError {
+interface DbEmailVerification {
+  email: string
+  verificationCode: string | null
+  verificationCodeExpiration: number | null
+  authorizationCode: string | null
+  authorizationCodeExpiration: number | null
+  cancelCode: string
+}
+
+class UserHasPendingVerificationError extends AppError {
   constructor() {
-    super('Failed to create token.')
+    super('You already have a pending verification email. Please cancel it first.', UserHasPendingVerificationError, 400)
+  }
+}
+
+class ExpiredCodeError extends AppError {
+  constructor() {
+    super('Your code has expired. Please try again.', ExpiredCodeError, 400)
+  }
+}
+
+class TokenCreationFailedError extends AppError {
+  constructor() {
+    super('Failed to create token.', TokenCreationFailedError)
+  }
+}
+
+class DeleteVerificationFailedError extends AppError {
+  constructor() {
+    super('Failed to delete existing verification.', DeleteVerificationFailedError)
   }
 }

@@ -1,4 +1,5 @@
-import { type EncryptedTotp, TotpBucket, type User } from '~/app'
+import { type EncryptedTotp, TotpBucket, type UserEvent } from '~/app'
+import type { H3Event } from 'h3'
 
 const validateBody = (body: unknown) => {
   if (typeof body !== 'object') {
@@ -17,9 +18,10 @@ const validateBody = (body: unknown) => {
   return true
 }
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
   const body = await readValidatedBody<Record<string, EncryptedTotp>>(event, validateBody)
-  const bucket = TotpBucket.of(event.context.user as User)
+  const userEvent = event as UserEvent
+  const bucket = TotpBucket.of(userEvent.context.user)
   await bucket.setAll(body)
-  return noError()
+  return SuccessObject.fromData()
 })

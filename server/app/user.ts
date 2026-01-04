@@ -1,4 +1,5 @@
 import type { AuthProvider } from '~/app/auth/providers/provider'
+import { TotpBucket } from '~/app/totp'
 
 export type ProviderId = OAuthProviderId | 'email'
 export type OAuthProviderId = `${AuthProviderId}Id`
@@ -65,16 +66,16 @@ export class User {
     }
 
     const db = useDatabase()
-    const row = await db
+    const dbUser = (await db
       .prepare(`SELECT * FROM users WHERE ${conditions.join(' AND ')} LIMIT 1`)
       .bind(...values)
-      .get()
+      .get()) as DbUser | undefined
 
-    if (!row || typeof row !== 'object') {
+    if (!dbUser) {
       return null
     }
 
-    const { id, contributorPlan, ...unfilteredProvidersIds } = row as { id: string, contributorPlan: boolean } & Record<ProviderId, string | null>
+    const { id, contributorPlan, ...unfilteredProvidersIds } = dbUser
     const providersIds = unfilteredProvidersIds as Record<ProviderId, string | null>
     const filteredProvidersIds: Partial<Record<ProviderId, string>> = {}
     for (const providerId in providersIds) {
@@ -109,4 +110,40 @@ export class User {
 
     return success
   }
+
+  async deleteFromDatabase(
+    options?: {
+      deleteSessions?: boolean
+      deleteTotps?: boolean
+    },
+  ) {
+    const db = useDatabase()
+    let success = true
+    if (options?.deleteSessions) {
+      const { success: sessionDeleted } = await db
+        .prepare(`DELETE FROM sessions WHERE userId = ?`)
+        .bind(this.id)
+        .run()
+      success = success && sessionDeleted
+    }
+    if (options?.deleteTotps) {
+      await TotpBucket.of(this).clear()
+    }
+    const { success: userDeleted } = await db
+      .prepare(`DELETE FROM users WHERE id = ?`)
+      .bind(this.id)
+      .run()
+    success = success && userDeleted
+    return success
+  }
+
+  toJson() {
+    return {
+      id: this.id,
+      contributorPlan: this.contributorPlan,
+      providers: this.providersIds,
+    }
+  }
 }
+
+type DbUser = { id: string, contributorPlan: boolean } & Record<ProviderId, string | null>

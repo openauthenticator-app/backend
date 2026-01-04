@@ -6,13 +6,13 @@ export class MicrosoftProvider extends OAuthProvider {
 
   constructor() {
     super('microsoft', true)
-    assert(!!backendConfig.authProviders.microsoft.tenantId, 'Missing Microsoft tenant ID.')
-    assert(!!backendConfig.authProviders.microsoft.clientId, 'Missing Microsoft client ID.')
-    assert(!!backendConfig.authProviders.microsoft.clientSecret, 'Missing Microsoft client secret.')
+    assert(!!backendConfig.authentication.providers.microsoft.tenantId, 'Missing Microsoft tenant ID.')
+    assert(!!backendConfig.authentication.providers.microsoft.clientId, 'Missing Microsoft client ID.')
+    assert(!!backendConfig.authentication.providers.microsoft.clientSecret, 'Missing Microsoft client secret.')
     this.microsoft = new arctic.MicrosoftEntraId(
-      backendConfig.authProviders.microsoft.tenantId,
-      backendConfig.authProviders.microsoft.clientId,
-      backendConfig.authProviders.microsoft.clientSecret,
+      backendConfig.authentication.providers.microsoft.tenantId,
+      backendConfig.authentication.providers.microsoft.clientId,
+      backendConfig.authentication.providers.microsoft.clientSecret,
       `${backendConfig.url}/auth/provider/microsoft/callback`,
     )
   }

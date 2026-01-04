@@ -1,16 +1,13 @@
-import { TotpBucket, type User, type UUID } from '~/app'
+import { TotpBucket, type UserEvent, type UUID } from '~/app'
+import type { H3Event } from 'h3'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event: H3Event) => {
   const totpUuid = getRouterParam(event, 'uuid')!
-  if (!isValidUUID(totpUuid)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Invalid UUID.',
-    })
-  }
-  const bucket = TotpBucket.of(event.context.user as User)
+  assert(isValidUUID(totpUuid), 'Invalid UUID.')
+  const userEvent = event as UserEvent
+  const bucket = TotpBucket.of(userEvent.context.user)
   if (await bucket.has(totpUuid as UUID)) {
     await bucket.delete(totpUuid as UUID)
   }
-  return noError()
+  return SuccessObject.fromData()
 })

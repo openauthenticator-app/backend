@@ -7,7 +7,8 @@ import type {
   WebhookTransfer,
 } from '@puzzmo/revenue-cat-webhook-types'
 import { H3Event } from 'h3'
-import { AppError, User } from '~/app'
+import { AppError } from '~/app/error'
+import { User } from '~/app/user'
 
 export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
   protected async handle(httpEvent: H3Event, webhookEvent: T): Promise<void> {
@@ -106,6 +107,6 @@ class UnknownEventHandler extends RevenueCatEventHandler<Webhook['event']> {}
 
 class UserNotFoundError extends AppError {
   constructor(userId: string) {
-    super(`User not found : ${userId}.`, 404)
+    super(`User not found : ${userId}.`, UserNotFoundError, 404)
   }
 }

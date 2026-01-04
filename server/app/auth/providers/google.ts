@@ -6,11 +6,11 @@ export class GoogleProvider extends OAuthProvider {
 
   constructor() {
     super('google', true)
-    assert(!!backendConfig.authProviders.google.clientId, 'Missing Google client ID.')
-    assert(!!backendConfig.authProviders.google.clientSecret, 'Missing Google client secret.')
+    assert(!!backendConfig.authentication.providers.google.clientId, 'Missing Google client ID.')
+    assert(!!backendConfig.authentication.providers.google.clientSecret, 'Missing Google client secret.')
     this.google = new arctic.Google(
-      backendConfig.authProviders.google.clientId,
-      backendConfig.authProviders.google.clientSecret,
+      backendConfig.authentication.providers.google.clientId,
+      backendConfig.authentication.providers.google.clientSecret,
       `${backendConfig.url}/auth/provider/google/callback`,
     )
   }
