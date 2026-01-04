@@ -1,0 +1,112 @@
+import { H3Error, H3Event } from 'h3'
+import { AppError, EncryptedTotp, TotpBucket, type UserEvent, type UUID } from '~/app'
+
+const validateBody = (body: unknown) => {
+  if (!Array.isArray(body)) {
+    return false
+  }
+  for (const operation of body) {
+    if (typeof operation !== 'object') {
+      return false
+    }
+    if (!('uuid' in operation) || !isValidUUID(operation.uuid)) {
+      return false
+    }
+    if (!('kind' in operation) || !['set', 'delete'].includes(operation.kind)) {
+      return false
+    }
+    if (!('jsonPayload' in operation)) {
+      return false
+    }
+  }
+  return true
+}
+
+export default defineEventHandler(async (event: H3Event) => {
+  const userEvent = event as UserEvent
+  const bucket = TotpBucket.of(userEvent.context.user)
+  const operations = await readValidatedBody<PushOperation[]>(event, validateBody)
+  const results: PushOperationResult[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const errorToMessage = (error: any) => {
+    if (error instanceof H3Error) {
+      return error.message
+    }
+    return error instanceof Error ? error.message : error.toString()
+  }
+
+  for (const operation of operations) {
+    switch (operation.kind) {
+      case 'set': {
+        if (typeof operation.jsonPayload !== 'object') {
+          throw new InvalidOperationPayloadError()
+        }
+        const uuids = Object.keys(operation.jsonPayload as object)
+        for (const uuid of uuids) {
+          try {
+            if (!isValidUUID(uuid)) {
+              results.push({ uuid, error: 'Invalid UUID.' })
+              continue
+            }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const totp = (operation.jsonPayload as Record<string, any>)[uuid]
+            if (!isEncryptedTotp(totp)) {
+              results.push({ uuid, error: 'Invalid encrypted TOTP.' })
+              continue
+            }
+            const existing = await bucket.get(uuid as UUID)
+            if (existing && existing.updatedAt > totp.updatedAt) {
+              results.push({ uuid, error: 'Encrypted TOTP is older than existing one.' })
+              continue
+            }
+            if (existing !== totp) {
+              await bucket.set(uuid as UUID, totp as EncryptedTotp)
+            }
+            results.push({ uuid, error: null })
+          }
+          catch (error) {
+            results.push({ uuid, error: errorToMessage(error) })
+          }
+        }
+      }
+        break
+      case 'delete': {
+        if (!Array.isArray(operation.jsonPayload)) {
+          throw new InvalidOperationPayloadError()
+        }
+        for (const uuid of operation.jsonPayload) {
+          try {
+            if (!isValidUUID(uuid)) {
+              results.push({ uuid, error: 'Invalid UUID.' })
+              continue
+            }
+            await bucket.delete(uuid)
+            results.push({ uuid, error: null })
+          }
+          catch (error) {
+            results.push({ uuid, error: errorToMessage(error) })
+          }
+        }
+      }
+        break
+    }
+  }
+  return SuccessObject.fromData(results)
+})
+
+interface PushOperation {
+  uuid: string
+  kind: 'set' | 'delete'
+  jsonPayload: unknown
+}
+
+interface PushOperationResult {
+  uuid: string
+  error: string | null
+}
+
+class InvalidOperationPayloadError extends AppError {
+  constructor() {
+    super(`Invalid operation payload.`, InvalidOperationPayloadError, 400)
+  }
+}
