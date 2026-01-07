@@ -35,10 +35,6 @@ export const isValidUUID = (uuid: string) => {
   return /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(uuid)
 }
 
-export const isValidUserIdentifier = (identifier: string) => {
-  return isValidUUID(identifier) || /^[a-zA-Z0-9_-]{3,16}$/.test(identifier)
-}
-
 export const isValidEmail = (email: string) => {
   return !!email.match(
     /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,

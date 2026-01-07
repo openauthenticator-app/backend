@@ -1,4 +1,13 @@
-import { AppleProvider, AuthProvider, EmailProvider, GithubProvider, GoogleProvider, MicrosoftProvider, } from '~/app'
+import {
+  AppError,
+  AppleProvider,
+  AuthProvider,
+  EmailProvider,
+  GithubProvider,
+  GoogleProvider,
+  MicrosoftProvider,
+} from '~/app'
+import { H3Event } from 'h3'
 
 const authProviders: Record<string, AuthProvider> = {
   google: new GoogleProvider(),
@@ -10,4 +19,17 @@ const authProviders: Record<string, AuthProvider> = {
 
 export type AuthProviderId = keyof typeof authProviders
 
-export const useAuthProvider = (provider: AuthProviderId) => authProviders[provider]
+export const useAuthProvider = (event: H3Event) => {
+  const providerId = getRouterParam(event, 'provider')
+  const provider = authProviders[providerId ?? '']
+  if (!provider) {
+    throw new ProviderNotFoundError()
+  }
+  return provider
+}
+
+class ProviderNotFoundError extends AppError {
+  constructor() {
+    super(`Provider not found.`, ProviderNotFoundError, 404)
+  }
+}

@@ -15,7 +15,7 @@ const validateBody = (body: unknown) => {
     if (!('kind' in operation) || !['set', 'delete'].includes(operation.kind)) {
       return false
     }
-    if (!('jsonPayload' in operation)) {
+    if (!('payload' in operation)) {
       return false
     }
   }
@@ -38,10 +38,10 @@ export default defineEventHandler(async (event: H3Event) => {
   for (const operation of operations) {
     switch (operation.kind) {
       case 'set': {
-        if (!operation || typeof operation.jsonPayload !== 'object') {
+        if (!operation || typeof operation.payload !== 'object') {
           throw new InvalidOperationPayloadError()
         }
-        const uuids = Object.keys(operation.jsonPayload as object)
+        const uuids = Object.keys(operation.payload as object)
         for (const uuid of uuids) {
           try {
             if (!isValidUUID(uuid)) {
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event: H3Event) => {
               continue
             }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const totp = (operation.jsonPayload as Record<string, any>)[uuid]
+            const totp = (operation.payload as Record<string, any>)[uuid]
             if (!isEncryptedTotp(totp)) {
               results.push({ uuid, error: 'Invalid encrypted TOTP.' })
               continue
@@ -71,10 +71,10 @@ export default defineEventHandler(async (event: H3Event) => {
       }
         break
       case 'delete': {
-        if (!Array.isArray(operation.jsonPayload)) {
+        if (!Array.isArray(operation.payload)) {
           throw new InvalidOperationPayloadError()
         }
-        for (const uuid of operation.jsonPayload) {
+        for (const uuid of operation.payload) {
           try {
             if (!isValidUUID(uuid)) {
               results.push({ uuid, error: 'Invalid UUID.' })
@@ -97,7 +97,7 @@ export default defineEventHandler(async (event: H3Event) => {
 interface PushOperation {
   uuid: string
   kind: 'set' | 'delete'
-  jsonPayload: unknown
+  payload: unknown
 }
 
 interface PushOperationResult {

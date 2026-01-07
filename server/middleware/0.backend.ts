@@ -32,7 +32,7 @@ export default defineEventHandler(async (event: H3Event) => {
   setResponseHeader(event, 'Backend-App-Version-Range', '>=2.0.0 <3.0.0')
   const path = getRequestURL(event).pathname
   for (const { prefix, exclusionSuffixes = [] } of protectedPaths) {
-    if (!path.startsWith(prefix) || exclusionSuffixes.some(path.endsWith)) {
+    if (!path.startsWith(prefix) || exclusionSuffixes.some(string => path.endsWith(string))) {
       return
     }
   }

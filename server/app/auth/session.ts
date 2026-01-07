@@ -162,13 +162,13 @@ class ExpiredSessionError extends AppError {
 
 class InvalidPayloadError extends AppError {
   constructor(kind: TokenKind) {
-    super(`Invalid ${kind} token payload.`, InvalidTokenError, 400)
+    super(`Invalid ${kind} token payload.`, InvalidPayloadError, 400)
   }
 }
 
 class InvalidTokenError extends AppError {
   constructor(kind: TokenKind) {
-    super(`Invalid token : ${kind}.`, InvalidTokenError, 400)
+    super(`Invalid ${kind} token provided.`, InvalidTokenError, 400)
   }
 }
 

@@ -1,10 +1,18 @@
-import { H3Error } from 'h3'
-import { AppError, type AuthProvider, type User } from '~/app'
+import { H3Error, type H3Event } from 'h3'
+import { AppError, type User } from '~/app'
 
 export const assert = (condition: boolean, error?: H3Error | string): asserts condition => {
   if (!condition) {
     throw error instanceof H3Error ? error : new AppError(error ?? 'Assertion failed.', 'AssertionFailed')
   }
+}
+
+export const redirectIntoApp = (event: H3Event, url: URL | string): ReturnType<typeof sendRedirect> => {
+  const urlString = url.toString()
+  if (urlString.startsWith('openauthenticator://') && process.env.NODE_ENV !== 'production') {
+    console.log(`Trying to open ${urlString}...`)
+  }
+  return sendRedirect(event, urlString)
 }
 
 export class ReturnObject {
@@ -66,12 +74,16 @@ export class ErrorObject extends ReturnObject {
   }
 
   static fromError(error: H3Error): ErrorObject {
-    const data: Record<string, string | number> = {
-      message: error.message,
-    }
+    const data: Record<string, string | number> = {}
+    let message = error.message
     if (error instanceof AppError) {
       data.errorCode = error.errorCode
     }
+    else if (error.statusCode === 400 && error.message === 'Validation Error') {
+      data.errorCode = 'validation'
+      message = 'An error occurred while validating your request. You should verify your parameters and the body of your request.'
+    }
+    data.message = message
     return new ErrorObject({
       data,
     })
@@ -81,7 +93,6 @@ export class ErrorObject extends ReturnObject {
 declare module 'h3' {
   interface H3EventContext {
     user?: User
-    authProvider?: AuthProvider
     appVersion?: string
     appClientId?: string
   }

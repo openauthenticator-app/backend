@@ -21,11 +21,16 @@ export default defineEventHandler(async (event: H3Event) => {
   const bucket = TotpBucket.of(userEvent.context.user)
   const timestamps = await readValidatedBody<Record<UUID, number>>(event, validateBody)
 
+  const inserts: Record<string, EncryptedTotp> = {}
   const updates: Record<string, EncryptedTotp> = {}
   const totps = await bucket.getAll()
   for (const [uuid, totp] of Object.entries(totps)) {
-    const clientTimestamp = timestamps[uuid as UUID] ?? 0
-    if (totp.updatedAt > clientTimestamp) {
+    const clientTimestamp = timestamps[uuid as UUID]
+    if (!clientTimestamp) {
+      inserts[uuid] = totp
+      delete timestamps[uuid as UUID]
+    }
+    else if (totp.updatedAt > clientTimestamp) {
       updates[uuid] = totp
       delete timestamps[uuid as UUID]
     }
@@ -33,6 +38,6 @@ export default defineEventHandler(async (event: H3Event) => {
 
   return SuccessObject.fromData({
     updates,
-    deleted: Object.keys(timestamps),
+    deletes: Object.keys(timestamps),
   })
 })

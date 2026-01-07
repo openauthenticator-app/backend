@@ -3,7 +3,7 @@ import { CookieSerializeOptions } from 'cookie-es'
 import { AppError } from '~/app/error'
 import { Session } from '~/app/auth/session'
 import { User } from '~/app/user'
-import { AppProviderEvent, ProviderEvent } from '~/app/event'
+import { AppEvent } from '~/app/event'
 import { useUser } from '~/utils/user'
 
 export type Mode = 'login' | 'link'
@@ -15,9 +15,9 @@ export abstract class AuthProvider {
     this.id = id
   }
 
-  public abstract redirect(event: AppProviderEvent): Promise<URL>
+  public abstract redirect(event: AppEvent): Promise<URL>
 
-  public abstract callback(event: ProviderEvent): ReturnType<typeof this.getCallbackRedirectUrl>
+  public abstract callback(event: AppEvent): ReturnType<typeof this.getCallbackRedirectUrl>
 
   protected async getCallbackRedirectUrl(authorizationCode: string, additionalQueryParams?: Record<string, string>): Promise<URL> {
     const url: URL = new URL(`openauthenticator://auth/provider/${this.id}/code`)
@@ -31,19 +31,19 @@ export abstract class AuthProvider {
     return url
   }
 
-  public async login(event: AppProviderEvent): ReturnType<typeof this.finishLogin> {
+  public async login(event: AppEvent): ReturnType<typeof this.finishLogin> {
     const providerUserId = await this.validateLogin(event)
     return await this.finishLogin(event, providerUserId)
   }
 
-  public async link(event: AppProviderEvent): ReturnType<typeof this.finishLink> {
+  public async link(event: AppEvent): ReturnType<typeof this.finishLink> {
     const providerUserId = await this.validateLogin(event)
     return await this.finishLink(event, providerUserId)
   }
 
-  protected abstract validateLogin(event: AppProviderEvent): Promise<string>
+  protected abstract validateLogin(event: AppEvent): Promise<string>
 
-  protected async finishLogin(event: AppProviderEvent, providerUserId: string): Promise<{ accessToken: string, refreshToken: string }> {
+  protected async finishLogin(event: AppEvent, providerUserId: string): Promise<{ accessToken: string, refreshToken: string }> {
     const idInUser = User.getAuthProviderFieldName(this)
     let user = await User.findInDatabase({ [idInUser]: providerUserId })
     if (!user) {
@@ -62,7 +62,7 @@ export abstract class AuthProvider {
     }
   }
 
-  protected async finishLink(event: AppProviderEvent, providerUserId: string): Promise<{ userId: string, providerUserId: string }> {
+  protected async finishLink(event: AppEvent, providerUserId: string): Promise<{ userId: string, providerUserId: string }> {
     const currentUser = await useUser(event)
     const idInUser = User.getAuthProviderFieldName(this)
     const existingUser = await User.findInDatabase({ [idInUser]: providerUserId })
@@ -82,7 +82,7 @@ export abstract class AuthProvider {
     }
   }
 
-  public async unlink(event: AppProviderEvent): Promise<void> {
+  public async unlink(event: AppEvent): Promise<void> {
     const user = await useUser(event)
     if (user.hasProvider(this)) {
       if (user.getProviderCount() <= 1) {
@@ -112,7 +112,7 @@ export abstract class OAuthProvider extends AuthProvider {
 
   abstract buildRedirectionUrl(state?: string, codeVerifier?: string): URL
 
-  public override async redirect(event: AppProviderEvent) {
+  public override async redirect(event: AppEvent) {
     const validateQuery = (query: unknown): boolean => !!query && typeof query === 'object'
     const { mode } = await getValidatedQuery<{ mode?: Mode }>(event, validateQuery)
     if (mode === 'link') {
@@ -132,12 +132,12 @@ export abstract class OAuthProvider extends AuthProvider {
     return this.buildRedirectionUrl(state, codeVerifier)
   }
 
-  protected async validateCallbackQueryParameters(event: ProviderEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string }> {
+  protected async validateCallbackQueryParameters(event: AppEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string }> {
     const query = await getValidatedQuery<{ code: string, state: string }>(event, validator)
     return { code: query.code, state: query.state }
   }
 
-  public override async callback(event: ProviderEvent) {
+  public override async callback(event: AppEvent) {
     let codeVerifier: string | undefined
     if (this.needsCodeVerifier) {
       codeVerifier = getCookie(event, `${this.id}_auth_code_verifier`)
@@ -168,7 +168,7 @@ export abstract class OAuthProvider extends AuthProvider {
 
   protected abstract validateAuthorizationCode(code: string, codeVerifier?: string): Promise<arctic.OAuth2Tokens>
 
-  protected override async validateLogin(event: AppProviderEvent) {
+  protected override async validateLogin(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false

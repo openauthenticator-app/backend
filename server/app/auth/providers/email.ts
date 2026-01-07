@@ -1,5 +1,5 @@
 import { AuthProvider, InvalidCodeError, type Mode, ProviderAlreadyLinkedError } from '~/app/auth/providers/provider'
-import { AppProviderEvent, ProviderEvent } from '~/app/event'
+import { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
 import crypto from 'node:crypto'
 
@@ -8,7 +8,7 @@ export class EmailProvider extends AuthProvider {
     super('email')
   }
 
-  public async cancel(event: AppProviderEvent) {
+  public async cancel(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -33,7 +33,7 @@ export class EmailProvider extends AuthProvider {
     await this.deleteVerification(email, { cancelCode })
   }
 
-  public override async redirect(event: AppProviderEvent) {
+  public override async redirect(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -77,7 +77,8 @@ export class EmailProvider extends AuthProvider {
       .bind(email)
       .get()) as DbEmailVerification | undefined
 
-    const url: URL = new URL(`openauthenticator://auth/provider/email/sent`)
+    const url: URL = new URL('openauthenticator://auth/provider/email/sent')
+    url.searchParams.append('email', email)
 
     let sendVerificationMail = !emailPendingDbVerification
     if (emailPendingDbVerification) {
@@ -101,6 +102,7 @@ export class EmailProvider extends AuthProvider {
       const verificationCode = generateCode()
       const verificationCodeExpiration = Date.now() + 10 * 60 * 1000
       const cancelCode = generateRandomString()
+      url.searchParams.append('cancelCode', cancelCode)
 
       await db
         .prepare('INSERT INTO emailVerifications (email, userId, verificationCode, verificationCodeExpiration, cancelCode) VALUES (?, ?, ?, ?, ?)')
@@ -125,7 +127,7 @@ export class EmailProvider extends AuthProvider {
       },
     })
 
-    const magicLink: URL = new URL('openauthenticator://auth/provider/email/callback', backendConfig.url)
+    const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('code', verificationCode)
     magicLink.searchParams.append('email', email)
     await transporter.sendMail({
@@ -133,13 +135,12 @@ export class EmailProvider extends AuthProvider {
       to: email,
       subject: 'Login to Open Authenticator',
       html: `
-        <h1>Login to Open Authenticator</h1>
         <p>
           Hello,
         </p>
         <p>
           We have received a login request to Open Authenticator. To proceed, you can either enter the code
-          <strong>${verificationCode}</strong> in the login page or click the link below :
+          <strong>${verificationCode}</strong> in the application or click the link below :
         </p>
         <p>
           &gt; <a href="${magicLink}">${magicLink}</a>
@@ -151,8 +152,8 @@ export class EmailProvider extends AuthProvider {
     })
   }
 
-  public override async callback(event: ProviderEvent) {
-    const validateBody = (query: unknown): boolean => {
+  public override async callback(event: AppEvent, postRequest: boolean = false) {
+    const validateQuery = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
       }
@@ -164,7 +165,17 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
-    const { email, code } = await getValidatedQuery<{ email: string, code: string }>(event, validateBody)
+    let email, code
+    if (postRequest) {
+      const result = await readValidatedBody<{ email: string, code: string }>(event, validateQuery)
+      email = result.email
+      code = result.code
+    }
+    else {
+      const result = await getValidatedQuery<{ email: string, code: string }>(event, validateQuery)
+      email = result.email
+      code = result.code
+    }
 
     const db = useDatabase()
     const dbVerification = (await db
@@ -195,7 +206,7 @@ export class EmailProvider extends AuthProvider {
     return this.getCallbackRedirectUrl(emailAuthorizationCode, { email })
   }
 
-  protected override async validateLogin(event: AppProviderEvent) {
+  protected override async validateLogin(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
