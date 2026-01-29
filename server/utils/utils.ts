@@ -15,6 +15,10 @@ export const redirectIntoApp = (event: H3Event, url: URL | string): ReturnType<t
   return sendRedirect(event, urlString)
 }
 
+export const booleanToNumber = (value: boolean): 0 | 1 => value ? 1 : 0
+
+export const numberToBoolean = (value: number): boolean => value === 1
+
 export class ReturnObject {
   success: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,15 +32,7 @@ export class ReturnObject {
     },
   ) {
     this.success = options.success
-    this.data = options.data
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  toJson(): Record<string, any> {
-    return {
-      success: this.success,
-      data: this.data ?? {},
-    }
+    this.data = options.data ?? {}
   }
 }
 

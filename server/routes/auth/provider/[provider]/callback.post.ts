@@ -6,7 +6,11 @@ export default defineEventHandler(async (event: H3Event) => {
   if (!['apple', 'email'].includes(authProvider.id)) {
     throw new MethodNotAllowedError()
   }
-  return redirectIntoApp(event, (await authProvider.callback(event as AppEvent)).toString())
+  if (authProvider.id === 'email') {
+    requireAppVersionHeader(event)
+    requireAppClientId(event)
+  }
+  return SuccessObject.fromData(await authProvider.callback(event as AppEvent))
 })
 
 class MethodNotAllowedError extends AppError {

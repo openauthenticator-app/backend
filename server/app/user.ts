@@ -7,11 +7,13 @@ export type OAuthProviderId = `${AuthProviderId}Id`
 export class User {
   public readonly id: string
   public readonly contributorPlan: boolean
+  private readonly totpsLimit: number
   private readonly providersIds: Partial<Record<ProviderId, string>>
 
   private constructor(id: string, contributorPlan: boolean, providersIds: Partial<Record<ProviderId, string>> = {}) {
     this.id = id
     this.contributorPlan = contributorPlan
+    this.totpsLimit = contributorPlan ? backendConfig.totpsLimit.contributor : backendConfig.totpsLimit.default
     this.providersIds = providersIds
   }
 
@@ -28,10 +30,14 @@ export class User {
   }
 
   static async createInDatabase(providersIds: Partial<Record<ProviderId, string>>, contributorPlan: boolean = false) {
+    if (Object.keys(providersIds).length === 0) {
+      return null
+    }
+
     const userId = generateRandomString()
 
     const fields: string[] = ['id', 'contributorPlan']
-    const values: (string | boolean)[] = [userId, contributorPlan]
+    const values: (string | number)[] = [userId, booleanToNumber(contributorPlan)]
 
     for (const providerId in providersIds) {
       const value = providersIds[providerId as ProviderId]
@@ -53,12 +59,12 @@ export class User {
     options: Partial<{ id?: string, contributorPlan?: boolean } & Record<ProviderId, string>>,
   ) {
     const conditions: string[] = []
-    const values: (string | boolean)[] = []
+    const values: (string | number)[] = []
 
-    for (const providerId in options) {
-      const value = (options as { [key: string]: string | boolean })[providerId]
-      conditions.push(`${providerId} = ?`)
-      values.push(value)
+    for (const option in options) {
+      const value = (options as { [key: string]: string | boolean })[option]
+      conditions.push(`${option} = ?`)
+      values.push(typeof value === 'boolean' ? booleanToNumber(value) : value)
     }
 
     if (conditions.length === 0) {
@@ -84,17 +90,17 @@ export class User {
         filteredProvidersIds[providerId as ProviderId] = value
       }
     }
-    return new User(id, contributorPlan, filteredProvidersIds)
+    return new User(id, numberToBoolean(contributorPlan), filteredProvidersIds)
   }
 
   async updateInDatabase(options: Partial<{ contributorPlan?: boolean } & Record<ProviderId, string | null>>) {
     const fields: string[] = []
-    const values: (string | boolean | null)[] = []
+    const values: (string | number | null)[] = []
 
     for (const option in options) {
       const value = (options as { [key: string]: string | boolean })[option]
       fields.push(`${option} = ?`)
-      values.push(value)
+      values.push(typeof value === 'boolean' ? booleanToNumber(value) : value ?? null)
     }
 
     if (fields.length === 0) {
@@ -141,9 +147,10 @@ export class User {
     return {
       id: this.id,
       contributorPlan: this.contributorPlan,
+      totpsLimit: this.totpsLimit,
       providers: this.providersIds,
     }
   }
 }
 
-type DbUser = { id: string, contributorPlan: boolean } & Record<ProviderId, string | null>
+type DbUser = { id: string, contributorPlan: number } & Record<ProviderId, string | null>

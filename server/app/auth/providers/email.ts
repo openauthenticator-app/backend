@@ -21,16 +21,15 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
-    const { email, cancelCode } = await getValidatedQuery<{ email: string, cancelCode: string }>(event, validateBody)
+    const { email, cancelCode } = await readValidatedBody<{ email: string, cancelCode: string }>(event, validateBody)
     const db = useDatabase()
     const verification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND cancelCode = ? LIMIT 1')
       .bind(email, cancelCode)
       .get()) as DbEmailVerification | undefined
-    if (!verification) {
-      throw new InvalidCodeError()
+    if (verification) {
+      await this.deleteVerification(email, { cancelCode })
     }
-    await this.deleteVerification(email, { cancelCode })
   }
 
   public override async redirect(event: AppEvent) {
@@ -130,29 +129,34 @@ export class EmailProvider extends AuthProvider {
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('code', verificationCode)
     magicLink.searchParams.append('email', email)
-    await transporter.sendMail({
-      from: backendConfig.authentication.providers.email.from,
-      to: email,
-      subject: 'Login to Open Authenticator',
-      html: `
-        <p>
-          Hello,
-        </p>
-        <p>
-          We have received a login request to Open Authenticator. To proceed, you can either enter the code
-          <strong>${verificationCode}</strong> in the application or click the link below :
-        </p>
-        <p>
-          &gt; <a href="${magicLink}">${magicLink}</a>
-        </p>
-        <p>
-          If you haven't asked to log in, you can safely ignore this email.
-        </p>
-      `,
-    })
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
+    }
+    else {
+      await transporter.sendMail({
+        from: backendConfig.authentication.providers.email.from,
+        to: email,
+        subject: 'Login to Open Authenticator',
+        html: `
+          <p>
+            Hello,
+          </p>
+          <p>
+            We have received a login request to Open Authenticator. To proceed, you can either enter the code
+            <strong>${verificationCode}</strong> in the application or click the link below :
+          </p>
+          <p>
+            &gt; <a href="${magicLink}">${magicLink}</a>
+          </p>
+          <p>
+            If you haven't asked to log in, you can safely ignore this email.
+          </p>
+        `,
+      })
+    }
   }
 
-  public override async callback(event: AppEvent, postRequest: boolean = false) {
+  public override async callback(event: AppEvent) {
     const validateQuery = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
         return false
@@ -166,7 +170,7 @@ export class EmailProvider extends AuthProvider {
       return isValidEmail(query.email)
     }
     let email, code
-    if (postRequest) {
+    if (event.method === 'POST') {
       const result = await readValidatedBody<{ email: string, code: string }>(event, validateQuery)
       email = result.email
       code = result.code
@@ -214,28 +218,25 @@ export class EmailProvider extends AuthProvider {
       if (!('authorizationCode' in query) || typeof query.authorizationCode !== 'string') {
         return false
       }
-      if (!('email' in query) || typeof query.email !== 'string') {
-        return false
-      }
-      return isValidEmail(query.email)
+      return true
     }
-    const { authorizationCode, email } = await readValidatedBody<{ authorizationCode: string, email: string }>(event, validateBody)
+    const { authorizationCode } = await readValidatedBody<{ authorizationCode: string }>(event, validateBody)
     const db = useDatabase()
     const dbVerification = (await db
-      .prepare('SELECT * FROM emailVerifications WHERE authorizationCode = ? AND email = ? LIMIT 1')
-      .bind(authorizationCode, email)
+      .prepare('SELECT * FROM emailVerifications WHERE authorizationCode = ? LIMIT 1')
+      .bind(authorizationCode)
       .get()) as DbEmailVerification | undefined
     if (!dbVerification) {
       throw new InvalidCodeError()
     }
 
     if (this.hasExpired(dbVerification)) {
-      await this.deleteVerification(email, { authorizationCode })
+      await this.deleteVerification(dbVerification.email, { authorizationCode })
       throw new ExpiredCodeError()
     }
 
-    await this.deleteVerification(email, { authorizationCode })
-    return email
+    await this.deleteVerification(dbVerification.email, { authorizationCode })
+    return dbVerification.email
   }
 
   private hasExpired(verification: DbEmailVerification, code?: 'verification' | 'authorization') {

@@ -37,6 +37,7 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   return SuccessObject.fromData({
+    inserts,
     updates,
     deletes: Object.keys(timestamps),
   })

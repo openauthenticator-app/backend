@@ -28,7 +28,7 @@ export default defineEventHandler(async (event: H3Event) => {
   const operations = await readValidatedBody<PushOperation[]>(event, validateBody)
   const results: PushOperationResult[] = []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const errorToMessage = (error: any) => {
+  const errorToDetails = (error: any) => {
     if (error instanceof H3Error) {
       return error.message
     }
@@ -45,27 +45,27 @@ export default defineEventHandler(async (event: H3Event) => {
         for (const uuid of uuids) {
           try {
             if (!isValidUUID(uuid)) {
-              results.push({ uuid, error: 'Invalid UUID.' })
+              results.push({ uuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
               continue
             }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const totp = (operation.payload as Record<string, any>)[uuid]
             if (!isEncryptedTotp(totp)) {
-              results.push({ uuid, error: 'Invalid encrypted TOTP.' })
+              results.push({ uuid, errorCode: 'invalidTotp', errorDetail: 'Invalid encrypted TOTP.' })
               continue
             }
             const existing = await bucket.get(uuid as UUID)
             if (existing && existing.updatedAt > totp.updatedAt) {
-              results.push({ uuid, error: 'Encrypted TOTP is older than existing one.' })
+              results.push({ uuid, errorCode: 'invalidUpdateTimestamp', errorDetail: 'Encrypted TOTP is older than existing one.' })
               continue
             }
             if (existing !== totp) {
               await bucket.set(uuid as UUID, totp as EncryptedTotp)
             }
-            results.push({ uuid, error: null })
+            results.push({ uuid, errorCode: null, errorDetail: null })
           }
           catch (error) {
-            results.push({ uuid, error: errorToMessage(error) })
+            results.push({ uuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
           }
         }
       }
@@ -77,14 +77,14 @@ export default defineEventHandler(async (event: H3Event) => {
         for (const uuid of operation.payload) {
           try {
             if (!isValidUUID(uuid)) {
-              results.push({ uuid, error: 'Invalid UUID.' })
+              results.push({ uuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
               continue
             }
             await bucket.delete(uuid)
-            results.push({ uuid, error: null })
+            results.push({ uuid, errorCode: null, errorDetail: null })
           }
           catch (error) {
-            results.push({ uuid, error: errorToMessage(error) })
+            results.push({ uuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
           }
         }
       }
@@ -102,8 +102,11 @@ interface PushOperation {
 
 interface PushOperationResult {
   uuid: string
-  error: string | null
+  errorCode: PushOperationResultError | null
+  errorDetail: string | null
 }
+
+type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'genericError'
 
 class InvalidOperationPayloadError extends AppError {
   constructor() {
