@@ -1,14 +1,19 @@
 import type { StringValue } from 'ms'
 import type { CookieSerializeOptions } from 'cookie-es'
-import { Range } from 'semver'
+import type { Range } from 'semver'
+import type { Driver } from 'unstorage'
+import memoryDriver from 'unstorage/drivers/memory'
 
 export interface BackendConfig {
   url: string
   appVersionRange: string | Range
   enableRegistrations: boolean
-  totpsLimit: {
-    default: number
-    contributor: number
+  totps: {
+    storage: Driver
+    limit: {
+      default: number
+      contributor: number
+    }
   }
   sentry?: {
     dsn?: string
@@ -64,9 +69,12 @@ export default {
   url: process.env.URL as string,
   appVersionRange: '>=2.0.0 <3.0.0',
   enableRegistrations: true,
-  totpsLimit: {
-    default: 6,
-    contributor: 100,
+  totps: {
+    storage: memoryDriver(),
+    limit: {
+      default: 6,
+      contributor: 100,
+    },
   },
   sentry: process.env.SENTRY_DSN ? { dsn: process.env.SENTRY_DSN } : undefined,
   authentication: {

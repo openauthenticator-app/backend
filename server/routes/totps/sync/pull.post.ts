@@ -28,17 +28,16 @@ export default defineEventHandler(async (event: H3Event) => {
     const clientTimestamp = timestamps[uuid as UUID]
     if (!clientTimestamp) {
       inserts[uuid] = totp
-      delete timestamps[uuid as UUID]
     }
     else if (totp.updatedAt > clientTimestamp) {
       updates[uuid] = totp
-      delete timestamps[uuid as UUID]
     }
   }
 
+  const deletes = Object.keys(await bucket.getDeleted()).filter(uuid => uuid in timestamps)
   return SuccessObject.fromData({
     inserts,
     updates,
-    deletes: Object.keys(timestamps),
+    deletes,
   })
 })

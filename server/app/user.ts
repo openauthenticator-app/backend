@@ -7,13 +7,13 @@ export type OAuthProviderId = `${AuthProviderId}Id`
 export class User {
   public readonly id: string
   public readonly contributorPlan: boolean
-  private readonly totpsLimit: number
+  public readonly totpsLimit: number
   private readonly providersIds: Partial<Record<ProviderId, string>>
 
   private constructor(id: string, contributorPlan: boolean, providersIds: Partial<Record<ProviderId, string>> = {}) {
     this.id = id
     this.contributorPlan = contributorPlan
-    this.totpsLimit = contributorPlan ? backendConfig.totpsLimit.contributor : backendConfig.totpsLimit.default
+    this.totpsLimit = contributorPlan ? backendConfig.totps.limit.contributor : backendConfig.totps.limit.default
     this.providersIds = providersIds
   }
 

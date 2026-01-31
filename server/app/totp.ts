@@ -11,15 +11,30 @@ export type UUID = `${string}-${string}-${string}-${string}-${string}`
 
 export class TotpBucket {
   private readonly storage: Storage<EncryptedTotp>
-  private readonly limit: number
+  private readonly deletedStorage: Storage<DeletedTotp>
+  private readonly limit: number | undefined
 
-  private constructor(storage: Storage<EncryptedTotp>, limit: number) {
+  private constructor(
+    storage: Storage<EncryptedTotp>,
+    deletedStorage: Storage<DeletedTotp>,
+    limit?: number,
+  ) {
     this.storage = storage
+    this.deletedStorage = deletedStorage
     this.limit = limit
   }
 
   static of(user: User) {
-    return new TotpBucket(useStorage<EncryptedTotp>(user.id), user.contributorPlan ? backendConfig.totpsLimit.contributor : backendConfig.totpsLimit.default)
+    return new TotpBucket(useStorage<EncryptedTotp>(`totps/${user.id}/totps`), useStorage<DeletedTotp>(`totps/${user.id}/deleted`), user.totpsLimit)
+  }
+
+  static async pruneDeleted(days?: number) {
+    const storage = useStorage('totps')
+    const users = await storage.getKeys()
+    for (const user of users) {
+      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<DeletedTotp>(`totps/${user}/deleted`))
+      await bucket.prune(days)
+    }
   }
 
   public has(uuid: UUID) {
@@ -34,7 +49,7 @@ export class TotpBucket {
     const add = !await this.storage.hasItem(uuid)
     if (add) {
       const keys = await this.storage.getKeys()
-      if (keys.length >= this.limit) {
+      if (this.limit && keys.length >= this.limit) {
         throw new TooManyTotpsError()
       }
     }
@@ -43,6 +58,7 @@ export class TotpBucket {
 
   public async delete(uuid: UUID) {
     await this.storage.removeItem(uuid)
+    await this.deletedStorage.setItem(uuid, { timestamp: Date.now() })
   }
 
   public async getAll() {
@@ -53,16 +69,51 @@ export class TotpBucket {
   public async setAll(record: Record<UUID, EncryptedTotp>) {
     const existingKeys = await this.storage.getKeys()
     const keysToSet = Object.keys(record)
-    const intersection = [...existingKeys].filter(keysToSet.includes).length
-    const newKeys = keysToSet.length - intersection
-    if (existingKeys.length + newKeys > this.limit) {
-      throw new TooManyTotpsError()
+    if (this.limit) {
+      const intersection = [...existingKeys].filter(keysToSet.includes).length
+      const newKeys = keysToSet.length - intersection
+      if (existingKeys.length + newKeys > this.limit) {
+        throw new TooManyTotpsError()
+      }
     }
     await this.storage.setItems(this.recordToStorageObjects(record))
+    const deletedKeys = existingKeys.filter(key => !keysToSet.includes(key))
+    await this.deletedStorage.setItems(this.keysToDeletedObjects(deletedKeys))
   }
 
   public async clear() {
+    const existingKeys = await this.storage.getKeys()
     await this.storage.clear()
+    await this.deletedStorage.setItems(this.keysToDeletedObjects(existingKeys))
+  }
+
+  public async getDeleted(): Promise<Record<UUID, DeletedTotp>> {
+    const result: Record<UUID, DeletedTotp> = {}
+    const uuids = await this.deletedStorage.getKeys()
+    for (const uuid of uuids) {
+      result[uuid as UUID] = (await this.deletedStorage.getItem(uuid))!
+    }
+    return result
+  }
+
+  private async prune(days?: number) {
+    const now = Date.now()
+    const deletedKeys = await this.deletedStorage.getKeys()
+    if (!days) {
+      await this.deletedStorage.clear()
+      return
+    }
+
+    for (const key of deletedKeys) {
+      const deleted = (await this.deletedStorage.getItem(key))!
+      if (now - deleted.timestamp > days * 24 * 60 * 60 * 1000) {
+        await this.deletedStorage.removeItem(key)
+      }
+    }
+  }
+
+  private keysToDeletedObjects(keys: string[]) {
+    return keys.map(key => ({ key, value: { timestamp: Date.now() } }))
   }
 
   private recordToStorageObjects(record: Record<UUID, EncryptedTotp>): StorageObject<string, EncryptedTotp>[] {
@@ -87,6 +138,10 @@ export class TotpBucket {
 }
 
 export type Algorithm = 'SHA1' | 'SHA256' | 'SHA512'
+
+export interface DeletedTotp {
+  timestamp: number
+}
 
 export class EncryptedTotp {
   public readonly algorithm?: Algorithm
