@@ -8,6 +8,7 @@ export interface BackendConfig {
   url: string
   appVersionRange: string | Range
   enableRegistrations: boolean
+  adminHeader?: string
   totps: {
     storage: Driver
     limit: {
@@ -69,6 +70,7 @@ export default {
   url: process.env.URL as string,
   appVersionRange: '>=2.0.0 <3.0.0',
   enableRegistrations: true,
+  adminHeader: process.env.ADMIN_HEADER,
   totps: {
     storage: memoryDriver(),
     limit: {

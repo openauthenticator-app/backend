@@ -1,6 +1,6 @@
 import jwt, { JwtPayload } from 'jsonwebtoken'
 import { H3Event } from 'h3'
-import type { StringValue } from 'ms'
+import ms, { type StringValue } from 'ms'
 import { AppError } from '~/app/error'
 
 type Payload = JwtPayload & { sub: string, sid: string }
@@ -15,6 +15,15 @@ export class Session {
     this.userId = userId
   }
 
+  static async pruneExpired() {
+    const db = useDatabase()
+    const { success } = await db
+      .prepare('DELETE FROM sessions WHERE expiration < ?')
+      .bind(Date.now())
+      .run()
+    return success
+  }
+
   static async initiate(userId: string, appClientId: string) {
     const session = new Session(generateRandomString(), userId)
     const accessToken = session.generateToken('access')
@@ -22,10 +31,11 @@ export class Session {
     if (!accessToken || !refreshToken) {
       throw new TokensGenerationError()
     }
+    const expiration = Date.now() + (typeof backendConfig.authentication.tokensTtl.refresh === 'number' ? backendConfig.authentication.tokensTtl.refresh : ms(backendConfig.authentication.tokensTtl.refresh as StringValue))
     const db = useDatabase()
     const { success } = await db
-      .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash) VALUES (?, ?, ?, ?)')
-      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper))
+      .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash, expiration) VALUES (?, ?, ?, ?, ?)')
+      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper), expiration)
       .run()
 
     if (!success) {
