@@ -22,6 +22,7 @@ const validateBody = (body: unknown) => {
   return true
 }
 
+const maxCount = 100
 export default defineEventHandler(async (event: H3Event) => {
   const userEvent = event as UserEvent
   const bucket = TotpBucket.of(userEvent.context.user)
@@ -36,6 +37,7 @@ export default defineEventHandler(async (event: H3Event) => {
   }
 
   const compactedOperations = compactOperations(operations)
+  let count = 0
   for (const operation of compactedOperations) {
     switch (operation.kind) {
       case 'set':
@@ -44,30 +46,35 @@ export default defineEventHandler(async (event: H3Event) => {
             throw new InvalidOperationPayloadError()
           }
           const uuids = Object.keys(operation.payload as object)
-          for (const uuid of uuids) {
+          for (const totpUuid of uuids) {
             try {
-              if (!isValidUUID(uuid)) {
-                results.push({ uuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
+              if (!isValidUUID(totpUuid)) {
+                results.push({ totpUuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
                 continue
               }
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const totp = (operation.payload as Record<string, any>)[uuid]
+              const totp = (operation.payload as Record<string, any>)[totpUuid]
               if (!isEncryptedTotp(totp)) {
-                results.push({ uuid, errorCode: 'invalidTotp', errorDetail: 'Invalid encrypted TOTP.' })
+                results.push({ totpUuid, errorCode: 'invalidTotp', errorDetail: 'Invalid encrypted TOTP.' })
                 continue
               }
-              const existing = await bucket.get(uuid as UUID)
+              count++
+              if (count > maxCount) {
+                results.push({ totpUuid, errorCode: 'maxCountExceeded', errorDetail: 'Maximum number of operations exceeded.' })
+                continue
+              }
+              const existing = await bucket.get(totpUuid as UUID)
               if (existing && existing.updatedAt > totp.updatedAt) {
-                results.push({ uuid, errorCode: 'invalidUpdateTimestamp', errorDetail: 'Encrypted TOTP is older than existing one.' })
+                results.push({ totpUuid, errorCode: 'invalidUpdateTimestamp', errorDetail: 'Encrypted TOTP is older than existing one.' })
                 continue
               }
               if (existing !== totp) {
-                await bucket.set(uuid as UUID, totp as EncryptedTotp)
+                await bucket.set(totpUuid as UUID, totp as EncryptedTotp)
               }
-              results.push({ uuid, errorCode: null, errorDetail: null })
+              results.push({ totpUuid, errorCode: null, errorDetail: null })
             }
             catch (error) {
-              results.push({ uuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
+              results.push({ totpUuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
             }
           }
         }
@@ -77,17 +84,22 @@ export default defineEventHandler(async (event: H3Event) => {
           if (!Array.isArray(operation.payload)) {
             throw new InvalidOperationPayloadError()
           }
-          for (const uuid of operation.payload) {
+          for (const totpUuid of operation.payload) {
             try {
-              if (!isValidUUID(uuid)) {
-                results.push({ uuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
+              if (!isValidUUID(totpUuid)) {
+                results.push({ totpUuid, errorCode: 'invalidUuid', errorDetail: 'Invalid UUID.' })
                 continue
               }
-              await bucket.delete(uuid)
-              results.push({ uuid, errorCode: null, errorDetail: null })
+              count++
+              if (count > maxCount) {
+                results.push({ totpUuid, errorCode: 'maxCountExceeded', errorDetail: 'Maximum number of operations exceeded.' })
+                continue
+              }
+              await bucket.delete(totpUuid)
+              results.push({ totpUuid, errorCode: null, errorDetail: null })
             }
             catch (error) {
-              results.push({ uuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
+              results.push({ totpUuid, errorCode: 'genericError', errorDetail: errorToDetails(error) })
             }
           }
         }
@@ -155,12 +167,12 @@ function compactOperations(operations: PushOperation[]): PushOperation[] {
 }
 
 interface PushOperationResult {
-  uuid: string
+  totpUuid: string
   errorCode: PushOperationResultError | null
   errorDetail: string | null
 }
 
-type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'genericError'
+type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxCountExceeded' | 'genericError'
 
 class InvalidOperationPayloadError extends AppError {
   constructor() {

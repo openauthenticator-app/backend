@@ -6,7 +6,7 @@ export type OAuthProviderId = `${AuthProviderId}Id`
 
 export class User {
   public readonly id: string
-  public readonly contributorPlan: boolean
+  private readonly contributorPlan: boolean
   public readonly totpsLimit: number
   private readonly providersIds: Partial<Record<ProviderId, string>>
 
@@ -133,7 +133,7 @@ export class User {
       success = success && sessionDeleted
     }
     if (options?.deleteTotps) {
-      await TotpBucket.of(this).clear()
+      await TotpBucket.of(this).clear(true)
     }
     const { success: userDeleted } = await db
       .prepare(`DELETE FROM users WHERE id = ?`)

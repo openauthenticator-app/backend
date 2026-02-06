@@ -28,12 +28,41 @@ export class TotpBucket {
     return new TotpBucket(useStorage<EncryptedTotp>(`totps/${user.id}/totps`), useStorage<DeletedTotp>(`totps/${user.id}/deleted`), user.totpsLimit)
   }
 
-  static async pruneDeleted(days?: number) {
+  static async pruneDeletedTotps(days?: number) {
     const storage = useStorage('totps')
     const users = await storage.getKeys()
     for (const user of users) {
       const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<DeletedTotp>(`totps/${user}/deleted`))
       await bucket.prune(days)
+    }
+  }
+
+  static async pruneAccounts(days?: number) {
+    const db = useDatabase()
+    const ids = (await db.prepare('SELECT * FROM users WHERE contributorPlan = 0')
+      .all()) as { id: string }[]
+    for (const { id } of ids) {
+      const sessions = (await db.prepare('SELECT sessionId FROM sessions WHERE userId = ? AND expiration > ?')
+        .bind(id, Date.now() + (days ?? 0) * 24 * 60 * 60 * 1000)
+        .all()) as { sessionId: string }[]
+      if (sessions.length > 0) {
+        continue
+      }
+      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${id}/totps`), useStorage<DeletedTotp>(`totps/${id}/deleted`))
+      const keys = await bucket.storage.getKeys()
+      if (keys.length > 0) {
+        continue
+      }
+      await bucket.clear(true)
+      await db.prepare('DELETE FROM users WHERE id = ?')
+        .bind(id)
+        .run()
+      await db.prepare('DELETE FROM sessions WHERE userId = ?')
+        .bind(id)
+        .run()
+      await db.prepare('DELETE FROM emailVerifications WHERE userId = ?')
+        .bind(id)
+        .run()
     }
   }
 
@@ -81,10 +110,15 @@ export class TotpBucket {
     await this.deletedStorage.setItems(this.keysToDeletedObjects(deletedKeys))
   }
 
-  public async clear() {
+  public async clear(clearDeleted = false) {
     const existingKeys = await this.storage.getKeys()
     await this.storage.clear()
-    await this.deletedStorage.setItems(this.keysToDeletedObjects(existingKeys))
+    if (clearDeleted) {
+      await this.deletedStorage.clear()
+    }
+    else {
+      await this.deletedStorage.setItems(this.keysToDeletedObjects(existingKeys))
+    }
   }
 
   public async getDeleted(): Promise<Record<UUID, DeletedTotp>> {

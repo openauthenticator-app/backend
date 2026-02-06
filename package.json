@@ -11,10 +11,10 @@
     "@eslint/js": "^9.39.2",
     "@stylistic/eslint-plugin": "^5.7.1",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/nodemailer": "^7.0.6",
+    "@types/nodemailer": "^7.0.9",
     "@types/semver": "^7.7.1",
     "eslint": "^9.39.2",
-    "globals": "^17.1.0",
+    "globals": "^17.3.0",
     "h3": "^1.15.5",
     "jiti": "^2.6.1",
     "nitropack": "^2.13.1",
@@ -22,11 +22,11 @@
   },
   "dependencies": {
     "@puzzmo/revenue-cat-webhook-types": "^1.1.0",
-    "@sentry/node": "^10.36.0",
-    "@sentry/profiling-node": "^10.36.0",
+    "@sentry/node": "^10.38.0",
+    "@sentry/profiling-node": "^10.38.0",
     "arctic": "^3.7.0",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^7.0.12",
-    "semver": "^7.7.3"
+    "nodemailer": "^8.0.0",
+    "semver": "^7.7.4"
   }
 }
