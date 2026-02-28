@@ -82,7 +82,7 @@ export default {
   authentication: {
     tokensTtl: {
       access: '15m',
-      refresh: '180d',
+      refresh: '60d',
     },
     cookiesOptions: {
       path: '/',

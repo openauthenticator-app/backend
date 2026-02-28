@@ -29,12 +29,13 @@ export class User {
     return Object.keys(this.providersIds).length
   }
 
-  static async createInDatabase(providersIds: Partial<Record<ProviderId, string>>, contributorPlan: boolean = false) {
+  static async createInDatabase(providersIds: Partial<Record<ProviderId, string>>, options: { contributorPlan?: boolean, userId?: string } = {}) {
     if (Object.keys(providersIds).length === 0) {
       return null
     }
 
-    const userId = generateRandomString()
+    const userId = options.userId ?? generateRandomString()
+    const contributorPlan = options.contributorPlan ?? false
 
     const fields: string[] = ['id', 'contributorPlan']
     const values: (string | number)[] = [userId, booleanToNumber(contributorPlan)]

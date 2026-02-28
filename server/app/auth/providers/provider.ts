@@ -113,10 +113,26 @@ export abstract class OAuthProvider extends AuthProvider {
   abstract buildRedirectionUrl(state?: string, codeVerifier?: string): URL
 
   public override async redirect(event: AppEvent) {
-    const validateQuery = (query: unknown): boolean => !!query && typeof query === 'object'
-    const { mode } = await getValidatedQuery<{ mode?: Mode }>(event, validateQuery)
+    const validateQuery = (query: unknown): boolean => {
+      if (!query || typeof query !== 'object') {
+        return false
+      }
+      if ('mode' in query) {
+        if (query.mode !== 'login' && query.mode !== 'link') {
+          return false
+        }
+        if (query.mode === 'link' && !('userId' in query && typeof query.userId === 'string')) {
+          return false
+        }
+      }
+      return true
+    }
+    const { mode, userId } = await getValidatedQuery<{ mode?: Mode, userId?: string }>(event, validateQuery)
     if (mode === 'link') {
-      const user = await useUser(event)
+      const user = await User.findInDatabase({ id: userId })
+      if (!user) {
+        throw new UserNotFoundByIdError()
+      }
       if (user.hasProvider(this)) {
         throw new ProviderAlreadyLinkedError()
       }
@@ -199,6 +215,12 @@ export abstract class OAuthProvider extends AuthProvider {
 class RegistrationsDisabledError extends AppError {
   constructor() {
     super('Registrations are disabled.', RegistrationsDisabledError, 403)
+  }
+}
+
+class UserNotFoundByIdError extends AppError {
+  constructor() {
+    super(`No user found matching the given identifier.`, UserNotFoundByIdError, 404)
   }
 }
 
