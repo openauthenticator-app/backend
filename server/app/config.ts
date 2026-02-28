@@ -3,6 +3,7 @@ import type { CookieSerializeOptions } from 'cookie-es'
 import type { Range } from 'semver'
 import type { Driver } from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
+import type { DatabaseConnectionConfig } from 'nitropack'
 
 export interface BackendConfig {
   url: string
@@ -20,6 +21,7 @@ export interface BackendConfig {
     dsn?: string
   }
   authentication: {
+    database: DatabaseConnectionConfig
     tokensTtl: {
       access: StringValue | number
       refresh: StringValue | number
@@ -80,6 +82,9 @@ export default {
   },
   sentry: process.env.SENTRY_DSN ? { dsn: process.env.SENTRY_DSN } : undefined,
   authentication: {
+    database: {
+      connector: 'sqlite',
+    },
     tokensTtl: {
       access: '15m',
       refresh: '60d',
