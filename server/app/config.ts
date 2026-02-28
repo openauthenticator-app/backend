@@ -1,8 +1,7 @@
 import type { StringValue } from 'ms'
 import type { CookieSerializeOptions } from 'cookie-es'
 import type { Range } from 'semver'
-import type { Driver } from 'unstorage'
-import memoryDriver from 'unstorage/drivers/memory'
+import type { BuiltinDriverName, BuiltinDriverOptions } from 'unstorage'
 import type { DatabaseConnectionConfig } from 'nitropack'
 
 export interface BackendConfig {
@@ -11,7 +10,10 @@ export interface BackendConfig {
   enableRegistrations: boolean
   adminHeader?: string
   totps: {
-    storage: Driver
+    storage: {
+      // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
+      [K in BuiltinDriverName]: { driver: K } & BuiltinDriverOptions[K];
+    }[BuiltinDriverName]
     limit: {
       default: number
       contributor: number
@@ -74,7 +76,9 @@ export default {
   enableRegistrations: true,
   adminHeader: process.env.ADMIN_HEADER,
   totps: {
-    storage: memoryDriver(),
+    storage: {
+      driver: 'memory',
+    },
     limit: {
       default: 6,
       contributor: 100,
@@ -84,6 +88,9 @@ export default {
   authentication: {
     database: {
       connector: 'sqlite',
+      options: {
+        name: 'db',
+      },
     },
     tokensTtl: {
       access: '15m',

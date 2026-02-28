@@ -1,6 +1,5 @@
 import { defineNitroConfig } from 'nitropack/config'
 import backendConfig from './backend.config'
-import fsDriver from 'unstorage/drivers/fs'
 
 // https://nitro.build/config
 export default defineNitroConfig({
@@ -24,20 +23,23 @@ export default defineNitroConfig({
     routes: ['/'],
   },
   storage: {
-    totps: process.env.NODE_ENV === 'production'
-      ? backendConfig.totps.storage
-      : fsDriver({
-          base: './.data/storage',
-        }),
+    totps: backendConfig.totps.storage,
+  },
+  devStorage: {
+    totps: {
+      driver: 'fs',
+      base: './.data/storage',
+    },
   },
   database: {
-    default: process.env.NODE_ENV === 'production'
-      ? backendConfig.authentication.database
-      : {
-          connector: 'sqlite',
-          options: {
-            name: 'db',
-          },
-        },
+    default: backendConfig.authentication.database,
+  },
+  devDatabase: {
+    default: {
+      connector: 'sqlite',
+      options: {
+        name: 'db',
+      },
+    },
   },
 })
