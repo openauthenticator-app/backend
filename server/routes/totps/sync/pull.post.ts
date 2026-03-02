@@ -16,28 +16,30 @@ const validateBody = (body: unknown) => {
   return true
 }
 
-export default defineEventHandler(async (event: H3Event) => {
-  const userEvent = event as UserEvent
-  const bucket = TotpBucket.of(userEvent.context.user)
-  const timestamps = await readValidatedBody<Record<UUID, number>>(event, validateBody)
+export default defineEventHandler({
+  onRequest: [rateLimit()],
+  handler: async (event: H3Event) => {
+    const userEvent = event as UserEvent
+    const bucket = TotpBucket.of(userEvent.context.user)
+    const timestamps = await readValidatedBody<Record<UUID, number>>(event, validateBody)
 
-  const inserts: Record<string, EncryptedTotp> = {}
-  const updates: Record<string, EncryptedTotp> = {}
-  const totps = await bucket.getAll()
-  for (const [uuid, totp] of Object.entries(totps)) {
-    const clientTimestamp = timestamps[uuid as UUID]
-    if (!clientTimestamp) {
-      inserts[uuid] = totp
+    const inserts: Record<string, EncryptedTotp> = {}
+    const updates: Record<string, EncryptedTotp> = {}
+    const totps = await bucket.getAll()
+    for (const [uuid, totp] of Object.entries(totps)) {
+      const clientTimestamp = timestamps[uuid as UUID]
+      if (!clientTimestamp) {
+        inserts[uuid] = totp
+      } else if (totp.updatedAt > clientTimestamp) {
+        updates[uuid] = totp
+      }
     }
-    else if (totp.updatedAt > clientTimestamp) {
-      updates[uuid] = totp
-    }
-  }
 
-  const deletes = Object.keys(await bucket.getDeleted()).filter(uuid => uuid in timestamps)
-  return SuccessObject.fromData({
-    inserts,
-    updates,
-    deletes,
-  })
+    const deletes = Object.keys(await bucket.getDeleted()).filter(uuid => uuid in timestamps)
+    return SuccessObject.fromData({
+      inserts,
+      updates,
+      deletes,
+    })
+  },
 })

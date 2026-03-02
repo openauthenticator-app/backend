@@ -23,26 +23,27 @@ const validateBody = (body: unknown) => {
 }
 
 const maxCount = 100
-export default defineEventHandler(async (event: H3Event) => {
-  const userEvent = event as UserEvent
-  const bucket = TotpBucket.of(userEvent.context.user)
-  const operations = await readValidatedBody<PushOperation[]>(event, validateBody)
-  const results: PushOperationResult[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const errorToDetails = (error: any) => {
-    if (error instanceof H3Error) {
-      return error.message
+export default defineEventHandler({
+  onRequest: [rateLimit()],
+  handler: async (event: H3Event) => {
+    const userEvent = event as UserEvent
+    const bucket = TotpBucket.of(userEvent.context.user)
+    const operations = await readValidatedBody<PushOperation[]>(event, validateBody)
+    const results: PushOperationResult[] = []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const errorToDetails = (error: any) => {
+      if (error instanceof H3Error) {
+        return error.message
+      }
+      return error instanceof Error ? error.message : error.toString()
     }
-    return error instanceof Error ? error.message : error.toString()
-  }
 
-  const compactedOperations = compactOperations(operations)
-  let count = 0
-  for (const operation of compactedOperations) {
-    const operationUuid = operation.uuid
-    switch (operation.kind) {
-      case 'set':
-        {
+    const compactedOperations = compactOperations(operations)
+    let count = 0
+    for (const operation of compactedOperations) {
+      const operationUuid = operation.uuid
+      switch (operation.kind) {
+        case 'set': {
           if (!operation || typeof operation.payload !== 'object') {
             throw new InvalidOperationPayloadError()
           }
@@ -109,9 +110,8 @@ export default defineEventHandler(async (event: H3Event) => {
             }
           }
         }
-        break
-      case 'delete':
-        {
+          break
+        case 'delete': {
           if (!Array.isArray(operation.payload)) {
             throw new InvalidOperationPayloadError()
           }
@@ -154,10 +154,11 @@ export default defineEventHandler(async (event: H3Event) => {
             }
           }
         }
-        break
+          break
+      }
     }
-  }
-  return SuccessObject.fromData(results)
+    return SuccessObject.fromData(results)
+  },
 })
 
 interface PushOperation {

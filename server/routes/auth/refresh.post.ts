@@ -8,13 +8,16 @@ const validateBody = (body: unknown): boolean => {
   return 'refreshToken' in body && typeof body.refreshToken === 'string'
 }
 
-export default defineEventHandler(async (event: H3Event) => {
-  const appEvent = event as AppEvent
-  const { refreshToken } = await readValidatedBody<{ refreshToken: string }>(appEvent, validateBody)
-  const session = Session.fromToken(refreshToken, 'refresh')
-  const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await session.refresh(refreshToken, appEvent.context.appClientId)
-  return SuccessObject.fromData({
-    accessToken: newAccessToken,
-    refreshToken: newRefreshToken,
-  })
+export default defineEventHandler({
+  onRequest: [rateLimit({ limit: 5 })],
+  handler: async (event: H3Event) => {
+    const appEvent = event as AppEvent
+    const { refreshToken } = await readValidatedBody<{ refreshToken: string }>(appEvent, validateBody)
+    const session = Session.fromToken(refreshToken, 'refresh')
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await session.refresh(refreshToken, appEvent.context.appClientId)
+    return SuccessObject.fromData({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    })
+  },
 })

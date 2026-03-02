@@ -24,12 +24,14 @@ export default defineNitroConfig({
   },
   storage: {
     totps: backendConfig.totps.storage,
+    ...(backendConfig.rateLimiter.enable && { rateLimiter: backendConfig.rateLimiter.storage }),
   },
   devStorage: {
     totps: {
       driver: 'fs',
       base: './.data/storage',
     },
+    ...(backendConfig.rateLimiter.enable && { rateLimiter: { driver: 'memory' } }),
   },
   database: {
     default: backendConfig.authentication.database,

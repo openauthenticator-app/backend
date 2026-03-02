@@ -1,4 +1,4 @@
-import defaultConfig, { BackendConfig } from '~/app/config'
+import defaultConfig, { type BackendConfig } from '../app/config'
 import { merge } from 'smob'
 
 type NestedPartial<T> = {

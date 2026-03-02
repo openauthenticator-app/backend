@@ -3,6 +3,7 @@ import type { CookieSerializeOptions } from 'cookie-es'
 import type { Range } from 'semver'
 import type { BuiltinDriverName, BuiltinDriverOptions } from 'unstorage'
 import type { DatabaseConnectionConfig } from 'nitropack'
+import 'dotenv/config'
 
 export interface BackendConfig {
   url: string
@@ -67,6 +68,13 @@ export interface BackendConfig {
   revenueCat: {
     contributorPlanEntitlementId?: string
     authorizationHeader?: string
+  }
+  rateLimiter: {
+    enable: boolean
+    storage: {
+      // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
+      [K in BuiltinDriverName]: { driver: K } & BuiltinDriverOptions[K];
+    }[BuiltinDriverName]
   }
 }
 
@@ -141,5 +149,11 @@ export default {
   revenueCat: {
     contributorPlanEntitlementId: 'contributor_plan',
     authorizationHeader: process.env.REVENUECAT_AUTHORIZATION_HEADER,
+  },
+  rateLimiter: {
+    enable: true,
+    storage: {
+      driver: 'memory',
+    },
   },
 } satisfies BackendConfig

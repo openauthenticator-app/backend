@@ -18,10 +18,13 @@ const validateBody = (body: unknown) => {
   return true
 }
 
-export default defineEventHandler(async (event: H3Event) => {
-  const body = await readValidatedBody<Record<string, EncryptedTotp>>(event, validateBody)
-  const userEvent = event as UserEvent
-  const bucket = TotpBucket.of(userEvent.context.user)
-  await bucket.setAll(body)
-  return SuccessObject.fromData()
+export default defineEventHandler({
+  onRequest: [rateLimit({ limit: 5 })],
+  handler: async (event: H3Event) => {
+    const body = await readValidatedBody<Record<string, EncryptedTotp>>(event, validateBody)
+    const userEvent = event as UserEvent
+    const bucket = TotpBucket.of(userEvent.context.user)
+    await bucket.setAll(body)
+    return SuccessObject.fromData()
+  },
 })
