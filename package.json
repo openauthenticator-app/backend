@@ -28,6 +28,7 @@
     "arctic": "^3.7.0",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.1",
-    "semver": "^7.7.4"
+    "semver": "^7.7.4",
+    "xss": "^1.0.15"
   }
 }

@@ -13,7 +13,7 @@ export class AppError extends H3Error {
     this.statusCode = statusCode
   }
 
-  private static getErrorCodeFromClass(cls: typeof AppError): string {
+  public static getErrorCodeFromClass(cls: typeof AppError): string {
     let name = cls.name
     name = name[0].toLowerCase() + name.substring(1)
     if (name.endsWith('Error')) {
