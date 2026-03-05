@@ -2,7 +2,7 @@ import { AppError, Session, User } from '~/app'
 import { H3Event } from 'h3'
 
 export const useUser = async (event: H3Event) => {
-  const session = Session.fromAuthorizationHeader(event)
+  const session = await Session.fromAuthorizationHeader(event)
   const user = await User.findInDatabase({ id: session.userId })
   if (!user) {
     throw new UserNotFoundError()

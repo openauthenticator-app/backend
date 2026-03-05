@@ -1,9 +1,9 @@
-import jwt, { JwtPayload } from 'jsonwebtoken'
 import { H3Event } from 'h3'
 import ms, { type StringValue } from 'ms'
 import { AppError } from '~/app/error'
+import { jwtVerify, SignJWT } from 'jose'
+import { JWTExpired } from 'jose/errors'
 
-type Payload = JwtPayload & { sub: string, sid: string }
 type TokenKind = 'access' | 'refresh'
 
 export class Session {
@@ -26,8 +26,8 @@ export class Session {
 
   static async initiate(userId: string, appClientId: string) {
     const session = new Session(generateRandomString(), userId)
-    const accessToken = session.generateToken('access')
-    const refreshToken = session.generateToken('refresh')
+    const accessToken = await session.generateToken('access')
+    const refreshToken = await session.generateToken('refresh')
     if (!accessToken || !refreshToken) {
       throw new TokensGenerationError()
     }
@@ -48,7 +48,7 @@ export class Session {
     }
   }
 
-  static fromAuthorizationHeader(event: H3Event) {
+  static async fromAuthorizationHeader(event: H3Event) {
     const auth = getHeader(event, 'Authorization')
     assert(!!auth, new MissingAuthorizationHeaderError())
     const match = auth.match(/^Bearer\s+(.+)$/i)
@@ -56,32 +56,38 @@ export class Session {
     if (!token) {
       throw new MalformedAuthorizationHeaderError()
     }
-    return Session.fromToken(token, 'access')
+    return await Session.fromToken(token, 'access')
   }
 
-  static fromToken(token: string, kind?: TokenKind) {
+  static async fromToken(token: string, kind?: TokenKind) {
     let payload
     try {
-      payload = jwt.verify(token, kind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access) as JwtPayload
+      const secret = new TextEncoder()
+        .encode(kind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access)
+      const result = await jwtVerify(token, secret, { algorithms: ['HS256'] })
+      payload = result.payload
     }
     catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
+      if (error instanceof JWTExpired) {
         throw new ExpiredSessionError()
       }
       throw new InvalidPayloadError(kind ?? 'access')
     }
     if (payload && typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
-      return new Session((payload as Payload).sid, payload.sub)
+      return new Session(payload.sid, payload.sub)
     }
     throw new InvalidTokenError(kind ?? 'access')
   }
 
-  generateToken(tokenKind?: TokenKind) {
-    return jwt.sign(
-      { sid: this.id },
-      tokenKind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access,
-      { subject: this.userId, expiresIn: (tokenKind === 'refresh' ? backendConfig.authentication.tokensTtl.refresh : backendConfig.authentication.tokensTtl.access) as StringValue | number },
-    )
+  private async generateToken(tokenKind?: TokenKind) {
+    const secret = new TextEncoder()
+      .encode(tokenKind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access)
+    return await new SignJWT({ sid: this.id })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(tokenKind === 'refresh' ? backendConfig.authentication.tokensTtl.refresh : backendConfig.authentication.tokensTtl.access)
+      .setSubject(this.userId)
+      .sign(secret)
   }
 
   async refresh(refreshToken: string, appClientId: string) {
