@@ -1,4 +1,5 @@
 import type {
+  Attributes,
   Webhook,
   WebhookExpiration,
   WebhookInitialPurchase,
@@ -16,6 +17,14 @@ export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
   }
 
   static handle(httpEvent: H3Event, webhookEvent: Webhook['event']) {
+    if ('subscriber_attributes' in webhookEvent && typeof webhookEvent.subscriber_attributes === 'object') {
+      const attributes = webhookEvent.subscriber_attributes as Attributes
+      const backend = attributes['backend']
+      const targetValue = new URL(backendConfig.url).hostname
+      if (backend?.value !== targetValue) {
+        throw new InvalidBackendHostError(targetValue)
+      }
+    }
     let handler: RevenueCatEventHandler<typeof webhookEvent>
     switch (webhookEvent.type) {
       case 'INITIAL_PURCHASE':
@@ -103,6 +112,12 @@ class TransferHandler extends RevenueCatEventHandler<WebhookTransfer> {
 }
 
 class UnknownEventHandler extends RevenueCatEventHandler<Webhook['event']> {}
+
+class InvalidBackendHostError extends AppError {
+  constructor(targetValue: string) {
+    super(`Invalid backend host. Must be ${targetValue}.`, InvalidBackendHostError, 400)
+  }
+}
 
 class UserNotFoundError extends AppError {
   constructor(userId: string) {
