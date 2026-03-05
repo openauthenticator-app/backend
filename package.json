@@ -24,7 +24,6 @@
     "@jfungus/ratelimit-h3": "^0.0.2",
     "@jfungus/ratelimit-unstorage": "^0.0.2",
     "@puzzmo/revenue-cat-webhook-types": "^1.1.0",
-    "@sentry/node": "^10.42.0",
     "arctic": "^3.7.0",
     "jose": "^6.2.0",
     "nodemailer": "^8.0.1",
