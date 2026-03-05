@@ -1,6 +1,5 @@
 import { NitroApp } from 'nitropack'
 import * as Sentry from '@sentry/node'
-import { nodeProfilingIntegration } from '@sentry/profiling-node'
 import { H3Error } from 'h3'
 
 export default defineNitroPlugin((nitroApp: NitroApp) => {
@@ -9,7 +8,6 @@ export default defineNitroPlugin((nitroApp: NitroApp) => {
   if (dsn) {
     Sentry.init({
       dsn,
-      integrations: [nodeProfilingIntegration()],
       tracesSampleRate: 1.0,
       profileSessionSampleRate: 1.0,
       profileLifecycle: 'trace',
