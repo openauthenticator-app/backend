@@ -20,9 +20,6 @@ export interface BackendConfig {
       contributor: number
     }
   }
-  sentry?: {
-    dsn?: string
-  }
   authentication: {
     database: DatabaseConnectionConfig
     tokensTtl: {
@@ -92,7 +89,6 @@ export default {
       contributor: 100,
     },
   },
-  sentry: process.env.SENTRY_DSN ? { dsn: process.env.SENTRY_DSN } : undefined,
   authentication: {
     database: {
       connector: 'sqlite',
