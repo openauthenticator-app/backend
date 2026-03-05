@@ -142,7 +142,13 @@ export default {
         secure: true,
         username: process.env.EMAIL_USERNAME,
         password: process.env.EMAIL_PASSWORD,
-        from: process.env.EMAIL_USERNAME?.toString().includes('@') ? process.env.EMAIL_USERNAME : `noreply@${getHostName(process.env.URL)}`,
+        from: (() => {
+          if (process.env.EMAIL_USERNAME?.toString().includes('@')) {
+            return process.env.EMAIL_USERNAME
+          }
+          const url = process.env.URL
+          return url ? `noreply@${new URL(url).hostname}` : undefined
+        })(),
       },
     },
   },

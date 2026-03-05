@@ -20,9 +20,9 @@ export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
     if ('subscriber_attributes' in webhookEvent && typeof webhookEvent.subscriber_attributes === 'object') {
       const attributes = webhookEvent.subscriber_attributes as Attributes
       const backend = attributes['backend']
-      const targetValue = getHostName(backendConfig.url)
+      const targetValue = new URL(backendConfig.url).hostname
       if (backend?.value !== targetValue) {
-        throw new InvalidBackendHostError(targetValue ?? backendConfig.url)
+        throw new InvalidBackendHostError(targetValue)
       }
     }
     let handler: RevenueCatEventHandler<typeof webhookEvent>

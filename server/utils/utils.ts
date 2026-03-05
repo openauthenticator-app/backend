@@ -19,8 +19,6 @@ export const booleanToNumber = (value: boolean): 0 | 1 => value ? 1 : 0
 
 export const numberToBoolean = (value: number): boolean => value === 1
 
-export const getHostName = (string?: string): string | undefined => string ? new URL(string).hostname : undefined
-
 export class ReturnObject {
   success: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
