@@ -62,6 +62,7 @@ export interface BackendConfig {
       }
     }
   }
+  sentryDsn?: string
   revenueCat: {
     contributorPlanEntitlementId?: string
     authorizationHeader?: string
@@ -148,6 +149,7 @@ export default {
       },
     },
   },
+  sentryDsn: process.env.SENTRY_DSN,
   revenueCat: {
     contributorPlanEntitlementId: 'contributor_plan',
     authorizationHeader: process.env.REVENUECAT_AUTHORIZATION_HEADER,

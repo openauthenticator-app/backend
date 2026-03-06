@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@sentry/nuxt": "^10.42.0",
     "@stylistic/eslint-plugin": "^5.9.0",
     "@types/ms": "^2.1.0",
     "@types/nodemailer": "^7.0.11",
