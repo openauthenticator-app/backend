@@ -7,7 +7,10 @@ export default defineConfig({
   serverDir: './',
   experimental: {
     database: true,
-    tasks: true, // TODO: Use tasks to schedule pruning of expired sessions, codes, etc.
+    tasks: true,
+  },
+  scheduledTasks: {
+    '0 0 1 * *': 'prune',
   },
   routeRules: {
     '/': {

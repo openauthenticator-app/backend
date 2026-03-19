@@ -32,6 +32,7 @@ function makeFetchTransport(options: BaseTransportOptions): Transport {
         },
       )
 
+      await response.text()
       return {
         statusCode: response.status,
         headers: {

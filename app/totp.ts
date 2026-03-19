@@ -1,6 +1,7 @@
 import type { Storage } from 'unstorage'
 import { User } from '~/app/user'
 import { AppError } from '~/app/error'
+import { useStorage } from 'nitro/storage'
 
 interface StorageObject<K extends string, V> {
   key: K
@@ -37,7 +38,7 @@ export class TotpBucket {
     }
   }
 
-  static async pruneAccounts(days?: number) {
+  static async pruneInactiveAccounts(days?: number) {
     const db = useDatabase()
     const ids = (await db.prepare('SELECT * FROM users WHERE contributorPlan = 0')
       .all()) as { id: string }[]
@@ -155,7 +156,7 @@ export class TotpBucket {
     return keys.map((key) => {
       return {
         key,
-        value: record[key as UUID],
+        value: record[key as UUID]!,
       }
     })
   }

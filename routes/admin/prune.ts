@@ -6,7 +6,7 @@ export default defineHandler(async (event: H3Event) => {
   if (!body) {
     return ErrorObject.validationError()
   }
-  await TotpBucket.pruneAccounts(body.days)
+  await TotpBucket.pruneInactiveAccounts(body.days)
   await Session.pruneExpired()
   await TotpBucket.pruneDeletedTotps(body.days)
   return SuccessObject.fromData()
