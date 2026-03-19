@@ -1,24 +1,30 @@
-import { defineNitroConfig } from 'nitropack/config'
+import { defineConfig } from 'nitro/config'
 import backendConfig from './backend.config'
 
 // https://nitro.build/config
-export default defineNitroConfig({
+export default defineConfig({
   compatibilityDate: 'latest',
-  srcDir: 'server',
+  serverDir: './',
   experimental: {
     database: true,
+    tasks: true, // TODO: Use tasks to schedule pruning of expired sessions, codes, etc.
+  },
+  routeRules: {
+    '/': {
+      prerender: true,
+    },
   },
   imports: {
+    dirs: ['./utils'],
     imports: [
       {
         name: 'default',
         as: 'backendConfig',
-        from: '~~/backend.config.ts',
+        from: '~/backend.config.ts',
       },
     ],
   },
-  sourceMap: true,
-  errorHandler: '~/error',
+  errorHandler: './error',
   prerender: {
     routes: ['/'],
   },
