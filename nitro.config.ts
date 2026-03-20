@@ -5,6 +5,11 @@ import backendConfig from './backend.config'
 export default defineConfig({
   compatibilityDate: 'latest',
   serverDir: './',
+  rolldownConfig: {
+    resolve: {
+      mainFields: ['module', 'main'],
+    },
+  },
   experimental: {
     database: true,
     tasks: true,
