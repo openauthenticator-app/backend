@@ -6,7 +6,6 @@ export default defineConfig({
   compatibilityDate: 'latest',
   serverDir: './',
   cloudflare: {
-    deployConfig: true,
     nodeCompat: true,
   },
   rolldownConfig: {
