@@ -74,7 +74,7 @@ export class ErrorObject extends ReturnObject {
     if (error instanceof AppError) {
       data.errorCode = error.errorCode
     }
-    else if (error.status === 400 && error.message === 'Validation Error') {
+    else if (error.status === 400 && error.message === 'Validation failed') {
       return ErrorObject.validationError()
     }
     data.message = error.message

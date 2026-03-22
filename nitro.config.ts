@@ -5,9 +5,6 @@ import backendConfig from './backend.config'
 export default defineConfig({
   compatibilityDate: 'latest',
   serverDir: './',
-  cloudflare: {
-    deployConfig: false,
-  },
   rolldownConfig: {
     resolve: {
       mainFields: ['module', 'main'],
