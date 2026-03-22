@@ -40,7 +40,10 @@ export class ReturnObject {
 
   public toResponse(): Response {
     return new Response(
-      JSON.stringify(this),
+      JSON.stringify({
+        success: this.success,
+        data: this.data,
+      }),
       {
         status: this.status,
         headers: {
