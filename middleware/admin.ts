@@ -6,6 +6,7 @@ export default defineHandler(async (event: H3Event) => {
     return
   }
   const targetHeader = backendConfig.adminHeader
+  console.log(process.env.NODE_ENV)
   if (!targetHeader && process.env.NODE_ENV === 'production') {
     throw new HTTPError(
       'Admin header is not set in production.',
