@@ -1,4 +1,5 @@
-import { defineHandler, getRequestURL, type H3Event, HTTPError } from 'nitro/h3'
+import { defineHandler, getRequestURL, type H3Event } from 'nitro/h3'
+import { AppError } from '~/app/error'
 
 export default defineHandler(async (event: H3Event) => {
   const path = getRequestURL(event).pathname
@@ -7,20 +8,22 @@ export default defineHandler(async (event: H3Event) => {
   }
   const targetHeader = backendConfig.adminHeader
   if (!targetHeader && process.env.NODE_ENV === 'production') {
-    throw new HTTPError(
-      'Admin header is not set in production.',
-      {
-        status: 500,
-      },
-    )
+    throw new AdminHeaderNotSetError()
   }
   const auth = event.req.headers.get('Authorization')
   if (auth !== targetHeader) {
-    throw new HTTPError(
-      'Unauthorized.',
-      {
-        status: 401,
-      },
-    )
+    throw new UnauthorizedError()
   }
 })
+
+class AdminHeaderNotSetError extends AppError {
+  constructor() {
+    super('Admin header is not set in production.', AdminHeaderNotSetError, 500)
+  }
+}
+
+class UnauthorizedError extends AppError {
+  constructor() {
+    super('Unauthorized.', UnauthorizedError, 401)
+  }
+}
