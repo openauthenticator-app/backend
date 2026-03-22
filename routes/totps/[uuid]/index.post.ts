@@ -10,6 +10,6 @@ export default defineHandler({
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
     await bucket.set(totpUuid as UUID, body)
-    return SuccessObject.fromData()
+    return SuccessObject.fromData().toResponse()
   },
 })

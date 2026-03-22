@@ -9,13 +9,5 @@ export default defineErrorHandler((error: HTTPError) => {
       error.stack ?? '',
     )
   }
-  return new Response(
-    JSON.stringify(ErrorObject.fromError(error)),
-    {
-      status: error.status,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    },
-  )
+  return ErrorObject.fromError(error).toResponse()
 })

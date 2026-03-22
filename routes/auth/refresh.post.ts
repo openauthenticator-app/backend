@@ -18,6 +18,6 @@ export default defineHandler({
     return SuccessObject.fromData({
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
-    })
+    }).toResponse()
   },
 })

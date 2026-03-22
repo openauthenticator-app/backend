@@ -17,11 +17,11 @@ export default defineHandler(async (event: H3Event) => {
 
   const webhook: Webhook | undefined = await readBody<Webhook>(event)
   if (!webhook) {
-    return ErrorObject.validationError()
+    return ErrorObject.validationError().toResponse()
   }
 
   await RevenueCatEventHandler.handle(event, webhook.event)
-  return SuccessObject.fromData()
+  return SuccessObject.fromData().toResponse()
 })
 
 class UnauthorizedError extends AppError {

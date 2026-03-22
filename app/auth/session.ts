@@ -3,6 +3,7 @@ import ms, { type StringValue } from 'ms'
 import { AppError } from '~/app/error'
 import { jwtVerify, SignJWT } from 'jose'
 import { JWTExpired } from 'jose/errors'
+import type { Database } from 'db0'
 
 type TokenKind = 'access' | 'refresh'
 
@@ -16,7 +17,7 @@ export class Session {
   }
 
   static async pruneExpired() {
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const { success } = await db
       .prepare('DELETE FROM sessions WHERE expiration < ?')
       .bind(Date.now())
@@ -32,7 +33,7 @@ export class Session {
       throw new TokensGenerationError()
     }
     const expiration = Date.now() + (typeof backendConfig.authentication.tokensTtl.refresh === 'number' ? backendConfig.authentication.tokensTtl.refresh : ms(backendConfig.authentication.tokensTtl.refresh as StringValue))
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const { success } = await db
       .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash, expiration) VALUES (?, ?, ?, ?, ?)')
       .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper), expiration)
@@ -91,25 +92,13 @@ export class Session {
   }
 
   async refresh(refreshToken: string, appClientId: string) {
-    const db = useDatabase()
-
-    await db.prepare('BEGIN').run()
-    const rollback = () => db.prepare('ROLLBACK').run()
-    try {
-      await this.revoke(refreshToken, appClientId)
-      const result = await Session.initiate(this.userId, appClientId)
-      await db.prepare('COMMIT').run()
-      return result
-    }
-    catch (error) {
-      await rollback()
-      throw error
-    }
+    await this.revoke(refreshToken, appClientId)
+    return await Session.initiate(this.userId, appClientId)
   }
 
   async revoke(refreshToken: string, appClientId?: string) {
     const tokenHash = sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper)
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const dbSession = (await db
       .prepare('SELECT appClientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
       .bind(this.id, this.userId, tokenHash)

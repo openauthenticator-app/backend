@@ -158,7 +158,7 @@ export default defineHandler({
           break
       }
     }
-    return SuccessObject.fromData(results)
+    return SuccessObject.fromData(results).toResponse()
   },
 })
 

@@ -1,5 +1,6 @@
 import type { AuthProvider } from '~/app/auth/providers/provider'
 import { TotpBucket } from '~/app/totp'
+import type { Database } from 'db0'
 
 export type ProviderId = OAuthProviderId | 'email'
 export type OAuthProviderId = `${AuthProviderId}Id`
@@ -48,7 +49,7 @@ export class User {
       }
     }
 
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const { success } = await db
       .prepare(`INSERT INTO users (${fields.join(', ')}) VALUES (${values.map(() => '?').join(', ')})`)
       .bind(...values)
@@ -63,7 +64,7 @@ export class User {
     const values: (string | number)[] = []
 
     for (const option in options) {
-      const value = (options as { [key: string]: string | boolean })[option]
+      const value = (options as { [key: string]: string | boolean })[option]!
       conditions.push(`${option} = ?`)
       values.push(typeof value === 'boolean' ? booleanToNumber(value) : value)
     }
@@ -72,7 +73,7 @@ export class User {
       return null
     }
 
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const dbUser = (await db
       .prepare(`SELECT * FROM users WHERE ${conditions.join(' AND ')} LIMIT 1`)
       .bind(...values)
@@ -109,7 +110,7 @@ export class User {
     }
 
     values.push(this.id)
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const { success } = await db
       .prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
       .bind(...values)
@@ -124,7 +125,7 @@ export class User {
       deleteTotps?: boolean
     },
   ) {
-    const db = useDatabase()
+    const db: Database = useDatabase()
     let success = true
     if (options?.deleteSessions) {
       const { success: sessionDeleted } = await db

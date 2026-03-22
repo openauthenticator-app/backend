@@ -5,6 +5,6 @@ export default defineHandler({
   middleware: [rateLimit()],
   handler: async (event: H3Event) => {
     const authProvider = useAuthProvider(event)
-    return SuccessObject.fromData(await authProvider.link(event as AppEvent))
+    return SuccessObject.fromData(await authProvider.link(event as AppEvent)).toResponse()
   },
 })

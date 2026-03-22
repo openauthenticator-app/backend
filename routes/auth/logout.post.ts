@@ -14,6 +14,6 @@ export default defineHandler({
     const { refreshToken } = await readValidatedBody<H3Event, { refreshToken: string }>(event, validateBody)
     const session = await Session.fromToken(refreshToken, 'refresh')
     await session.revoke(refreshToken)
-    return SuccessObject.fromData()
+    return SuccessObject.fromData().toResponse()
   },
 })

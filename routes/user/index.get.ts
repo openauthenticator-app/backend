@@ -4,6 +4,6 @@ export default defineHandler({
   middleware: [rateLimit()],
   handler: async (event: H3Event) => {
     const user = await useUser(event)
-    return SuccessObject.fromData(user.toJson())
+    return SuccessObject.fromData(user.toJson()).toResponse()
   },
 })

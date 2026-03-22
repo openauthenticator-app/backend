@@ -5,6 +5,6 @@ export default defineHandler({
   handler: async (event: H3Event) => {
     const user = await useUser(event)
     await user.deleteFromDatabase({ deleteSessions: true, deleteTotps: true })
-    return SuccessObject.fromData()
+    return SuccessObject.fromData().toResponse()
   },
 })

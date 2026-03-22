@@ -21,24 +21,40 @@ export const numberToBoolean = (value: number): boolean => value === 1
 
 export class ReturnObject {
   success: boolean
+  status: number
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data?: any
 
   constructor(
     options: {
       success: boolean
+      status?: number
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data?: any
     },
   ) {
     this.success = options.success
+    this.status = options.status ?? 200
     this.data = options.data ?? {}
+  }
+
+  public toResponse(): Response {
+    return new Response(
+      JSON.stringify(this),
+      {
+        status: this.status,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
   }
 }
 
 export class SuccessObject extends ReturnObject {
   constructor(
     options: {
+      status?: number
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data?: any
     } = {},
@@ -59,6 +75,7 @@ export class SuccessObject extends ReturnObject {
 export class ErrorObject extends ReturnObject {
   constructor(
     options: {
+      status?: number
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data?: any
     },
@@ -79,6 +96,7 @@ export class ErrorObject extends ReturnObject {
     }
     data.message = error.message
     return new ErrorObject({
+      status: error.status ?? 500,
       data,
     })
   }
@@ -86,6 +104,7 @@ export class ErrorObject extends ReturnObject {
   static validationError(): ErrorObject {
     return new ErrorObject({
       data: {
+        status: 400,
         errorCode: 'validation',
         message: 'An error occurred while validating your request. You should verify your parameters and the body of your request.',
       },

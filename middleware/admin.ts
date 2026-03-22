@@ -11,7 +11,7 @@ export default defineHandler(async (event: H3Event) => {
     throw new AdminHeaderNotSetError()
   }
   const auth = event.req.headers.get('Authorization')
-  if (auth !== targetHeader) {
+  if (targetHeader && auth !== targetHeader) {
     throw new UnauthorizedError()
   }
 })

@@ -12,7 +12,7 @@ export default defineHandler({
       requireAppVersionHeader(event)
       requireAppClientId(event)
     }
-    return SuccessObject.fromData(await authProvider.callback(event as AppEvent))
+    return SuccessObject.fromData(await authProvider.callback(event as AppEvent)).toResponse()
   },
 })
 

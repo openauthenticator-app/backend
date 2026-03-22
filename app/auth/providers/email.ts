@@ -3,6 +3,7 @@ import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
 import crypto from 'node:crypto'
 import { getValidatedQuery, type H3Event, readValidatedBody } from 'nitro/h3'
+import type { Database } from 'db0'
 
 export class EmailProvider extends AuthProvider {
   constructor() {
@@ -23,7 +24,7 @@ export class EmailProvider extends AuthProvider {
       return isValidEmail(query.email)
     }
     const { email, cancelCode } = await readValidatedBody<H3Event, { email: string, cancelCode: string }>(event, validateBody)
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const verification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND cancelCode = ? LIMIT 1')
       .bind(email, cancelCode)
@@ -58,7 +59,7 @@ export class EmailProvider extends AuthProvider {
       userId = user.id
     }
 
-    const db = useDatabase()
+    const db: Database = useDatabase()
     if (userId) {
       const userPendingDbVerification = (await db
         .prepare('SELECT * FROM emailVerifications WHERE userId = ? LIMIT 1')
@@ -182,7 +183,7 @@ export class EmailProvider extends AuthProvider {
       code = result.code
     }
 
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND verificationCode = ? LIMIT 1')
       .bind(email, code)
@@ -222,7 +223,7 @@ export class EmailProvider extends AuthProvider {
       return true
     }
     const { authorizationCode } = await readValidatedBody<H3Event, { authorizationCode: string }>(event, validateBody)
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE authorizationCode = ? LIMIT 1')
       .bind(authorizationCode)
@@ -250,7 +251,7 @@ export class EmailProvider extends AuthProvider {
   }
 
   private async deleteVerification(email: string, options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string } = {}) {
-    const db = useDatabase()
+    const db: Database = useDatabase()
     const fields = ['email']
     const values = [email]
     if (options.verificationCode) {
