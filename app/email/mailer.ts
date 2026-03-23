@@ -55,7 +55,7 @@ export abstract class Mailer {
     throw new Error(`Unsupported email library : ${library}.`)
   }
 
-  public abstract sendMail(
+  public abstract sendEmail(
     options: {
       from?: string
       to: string

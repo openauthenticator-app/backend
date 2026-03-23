@@ -6,7 +6,7 @@ export class CloudflareWorkerMailer extends Mailer {
     super(options)
   }
 
-  public async sendMail(
+  public async sendEmail(
     options: {
       from?: string
       to: string

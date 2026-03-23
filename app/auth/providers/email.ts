@@ -126,7 +126,7 @@ export class EmailProvider extends AuthProvider {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
     }
     else {
-      await mailer.sendMail({
+      await mailer.sendEmail({
         from: backendConfig.authentication.providers.email.from,
         to: email,
         subject: 'Login to Open Authenticator',
