@@ -197,7 +197,7 @@ export abstract class OAuthProvider extends AuthProvider {
       tokens = await this.validateAuthorizationCode(authorizationCode, codeVerifier)
     }
     catch {
-      throw new InvalidCodeError()
+      throw new InvalidAuthorizationCodeError()
     }
     const { id } = await this.findId(tokens)
     return id
@@ -261,9 +261,9 @@ class InvalidStateError extends AppError {
   }
 }
 
-export class InvalidCodeError extends AppError {
+export class InvalidAuthorizationCodeError extends AppError {
   constructor() {
-    super('Invalid code.', InvalidCodeError, 400)
+    super('Invalid authorization code.', InvalidAuthorizationCodeError, 400)
   }
 }
 

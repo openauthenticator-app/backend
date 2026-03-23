@@ -1,4 +1,9 @@
-import { AuthProvider, InvalidCodeError, type Mode, ProviderAlreadyLinkedError } from '~/app/auth/providers/provider'
+import {
+  AuthProvider,
+  InvalidAuthorizationCodeError,
+  type Mode,
+  ProviderAlreadyLinkedError
+} from '~/app/auth/providers/provider'
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
 import { Mailer } from '~/app/email'
@@ -180,7 +185,7 @@ export class EmailProvider extends AuthProvider {
       .get()) as DbEmailVerification | undefined
 
     if (!dbVerification) {
-      throw new InvalidCodeError()
+      throw new InvalidVerificationCodeError()
     }
 
     if (this.hasExpired(dbVerification)) {
@@ -219,7 +224,7 @@ export class EmailProvider extends AuthProvider {
       .bind(authorizationCode)
       .get()) as DbEmailVerification | undefined
     if (!dbVerification) {
-      throw new InvalidCodeError()
+      throw new InvalidAuthorizationCodeError()
     }
 
     if (this.hasExpired(dbVerification)) {
@@ -277,6 +282,12 @@ interface DbEmailVerification {
   authorizationCode: string | null
   authorizationCodeExpiration: number | null
   cancelCode: string
+}
+
+class InvalidVerificationCodeError extends AppError {
+  constructor() {
+    super('Invalid verification code.', InvalidVerificationCodeError, 400)
+  }
 }
 
 class UserHasPendingVerificationError extends AppError {
