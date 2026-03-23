@@ -23,6 +23,7 @@ export class CloudflareWorkerMailer extends Mailer {
       host: this.host,
       port: this.port,
       secure: this.secure,
+      authType: ['login', 'plain'],
     })
     await mailer.send({
       from: options.from ?? this.username,
