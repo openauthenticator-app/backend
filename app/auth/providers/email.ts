@@ -117,8 +117,6 @@ export class EmailProvider extends AuthProvider {
   }
 
   private async sendEmail(email: string, verificationCode: string) {
-    const mailer = await Mailer.getBackendConfigMailer()
-
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('code', verificationCode)
     magicLink.searchParams.append('email', email)
@@ -126,6 +124,7 @@ export class EmailProvider extends AuthProvider {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
     }
     else {
+      const mailer = await Mailer.getBackendConfigMailer()
       await mailer.sendEmail({
         from: backendConfig.authentication.providers.email.from,
         to: email,

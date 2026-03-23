@@ -31,5 +31,6 @@ export class NodemailerMailer extends Mailer {
       html: options.html,
       text: options.text,
     })
+    mailer.close()
   }
 }

@@ -15,7 +15,7 @@ export class CloudflareWorkerMailer extends Mailer {
       text?: string
     },
   ): Promise<void> {
-    const mailer = await WorkerMailer.connect({
+    await WorkerMailer.send({
       credentials: {
         username: this.username,
         password: this.password,
@@ -24,8 +24,7 @@ export class CloudflareWorkerMailer extends Mailer {
       port: this.port,
       secure: this.secure,
       authType: ['login', 'plain'],
-    })
-    await mailer.send({
+    }, {
       from: options.from ?? this.username,
       to: options.to,
       subject: options.subject,
