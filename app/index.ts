@@ -1,6 +1,7 @@
 export * from './auth'
 export * from './ratelimiter'
 export * from './revenuecat'
+export * from './email'
 export * from './error'
 export * from './event'
 export * from './totp'

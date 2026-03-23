@@ -53,6 +53,7 @@ export interface BackendConfig {
         tenantId?: string
       }
       email: {
+        library: 'auto' | 'nodemailer' | 'worker-mailer'
         host?: string
         port?: number
         secure?: boolean
@@ -134,6 +135,7 @@ export default {
         tenantId: process.env.MICROSOFT_TENANT_ID,
       },
       email: {
+        library: 'auto',
         host: process.env.EMAIL_HOST,
         port: 465,
         secure: true,

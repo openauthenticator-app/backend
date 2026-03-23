@@ -1,6 +1,7 @@
 import { AuthProvider, InvalidCodeError, type Mode, ProviderAlreadyLinkedError } from '~/app/auth/providers/provider'
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
+import { Mailer } from '~/app/email'
 import crypto from 'node:crypto'
 import { getValidatedQuery, type H3Event, readValidatedBody } from 'nitro/h3'
 import type { Database } from 'db0'
@@ -116,17 +117,7 @@ export class EmailProvider extends AuthProvider {
   }
 
   private async sendEmail(email: string, verificationCode: string) {
-    const nodemailer = await import('nodemailer')
-
-    const transporter = nodemailer.createTransport({
-      host: backendConfig.authentication.providers.email.host,
-      port: backendConfig.authentication.providers.email.port,
-      secure: backendConfig.authentication.providers.email.secure,
-      auth: {
-        user: backendConfig.authentication.providers.email.username,
-        pass: backendConfig.authentication.providers.email.password,
-      },
-    })
+    const mailer = await Mailer.getBackendConfigMailer()
 
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('code', verificationCode)
@@ -135,7 +126,7 @@ export class EmailProvider extends AuthProvider {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
     }
     else {
-      await transporter.sendMail({
+      await mailer.sendMail({
         from: backendConfig.authentication.providers.email.from,
         to: email,
         subject: 'Login to Open Authenticator',
