@@ -33,7 +33,6 @@
     "nodemailer": "^8.0.3",
     "semver": "^7.7.4",
     "smob": "^1.6.1",
-    "worker-mailer": "^1.2.1",
-    "xss": "^1.0.15"
+    "worker-mailer": "^1.2.1"
   }
 }

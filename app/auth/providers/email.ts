@@ -163,7 +163,7 @@ export class EmailProvider extends AuthProvider {
       return isValidEmail(query.email)
     }
     let email, code
-    if (event.method === 'POST') {
+    if (event.req.method === 'POST') {
       const result = await readValidatedBody<H3Event, { email: string, code: string }>(event, validateQuery)
       email = result.email
       code = result.code

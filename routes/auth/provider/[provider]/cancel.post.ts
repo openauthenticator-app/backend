@@ -1,6 +1,5 @@
 import type { AppEvent, EmailProvider } from '~/app'
 import { defineHandler, type H3Event, HTTPError } from 'nitro/h3'
-import xss from 'xss'
 
 export default defineHandler({
   middleware: [rateLimit()],
@@ -8,7 +7,7 @@ export default defineHandler({
     const authProvider = useAuthProvider(event)
     if (!['email'].includes(authProvider.id)) {
       throw new HTTPError(
-        `Cannot find any route matching [${event.req.method}] ${xss(event.url.pathname)}`,
+        `Cannot find any route matching the requested one.`,
         {
           status: 404,
         },
