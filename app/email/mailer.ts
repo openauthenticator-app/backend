@@ -24,7 +24,7 @@ export abstract class Mailer {
   public static async getBackendConfigMailer(): Promise<Mailer> {
     let library = backendConfig.email.library
     if (library === 'auto') {
-      library = process.env.NITRO_PRESET?.startsWith('cloudflare-') ? 'workermailer' : 'nodemailer'
+      library = process.env.NITRO_PRESET?.startsWith('cloudflare-') ? 'worker-mailer' : 'nodemailer'
     }
     switch (library) {
       case 'nodemailer': {
@@ -39,7 +39,7 @@ export abstract class Mailer {
           },
         )
       }
-      case 'workermailer': {
+      case 'worker-mailer': {
         const mailer = await import('./workermailer')
         return new mailer.CloudflareWorkerMailer(
           {
