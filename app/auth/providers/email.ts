@@ -123,7 +123,7 @@ export class EmailProvider extends AuthProvider {
 
   private async sendEmail(email: string, verificationCode: string) {
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
-    magicLink.searchParams.append('code', verificationCode)
+    magicLink.searchParams.append('verificationCode', verificationCode)
     magicLink.searchParams.append('email', email)
     if (process.env.NODE_ENV === 'development') {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
@@ -158,7 +158,7 @@ export class EmailProvider extends AuthProvider {
       if (!query || typeof query !== 'object') {
         return false
       }
-      if (!('code' in query) || typeof query.code !== 'string') {
+      if (!('verificationCode' in query) || typeof query.verificationCode !== 'string') {
         return false
       }
       if (!('email' in query) || typeof query.email !== 'string') {
@@ -166,22 +166,22 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
-    let email, code
+    let email, verificationCode
     if (event.req.method === 'POST') {
-      const result = await readValidatedBody<H3Event, { email: string, code: string }>(event, validateQuery)
+      const result = await readValidatedBody<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
       email = result.email
-      code = result.code
+      verificationCode = result.verificationCode
     }
     else {
-      const result = await getValidatedQuery<H3Event, { email: string, code: string }>(event, validateQuery)
+      const result = await getValidatedQuery<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
       email = result.email
-      code = result.code
+      verificationCode = result.verificationCode
     }
 
     const db: Database = useDatabase()
     const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND verificationCode = ? LIMIT 1')
-      .bind(email, code)
+      .bind(email, verificationCode)
       .get()) as DbEmailVerification | undefined
 
     if (!dbVerification) {
@@ -189,7 +189,7 @@ export class EmailProvider extends AuthProvider {
     }
 
     if (this.hasExpired(dbVerification)) {
-      await this.deleteVerification(email, { verificationCode: code })
+      await this.deleteVerification(email, { verificationCode })
       throw new ExpiredCodeError()
     }
 
@@ -197,7 +197,7 @@ export class EmailProvider extends AuthProvider {
     const authorizationCodeExpiration = Date.now() + 5 * 60 * 1000
     const { success } = await db
       .prepare('UPDATE emailVerifications SET authorizationCode = ?, verificationCode = NULL, authorizationCodeExpiration = ? WHERE email = ? AND verificationCode = ?')
-      .bind(emailAuthorizationCode, authorizationCodeExpiration, email, code)
+      .bind(emailAuthorizationCode, authorizationCodeExpiration, email, verificationCode)
       .run()
 
     if (!success) {

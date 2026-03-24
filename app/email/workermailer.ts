@@ -1,4 +1,3 @@
-import { WorkerMailer } from 'worker-mailer'
 import { Mailer, type MailerConstructorArguments } from './mailer'
 
 export class CloudflareWorkerMailer extends Mailer {
@@ -15,6 +14,7 @@ export class CloudflareWorkerMailer extends Mailer {
       text?: string
     },
   ): Promise<void> {
+    const { WorkerMailer } = await import('worker-mailer')
     await WorkerMailer.send({
       credentials: {
         username: this.username,

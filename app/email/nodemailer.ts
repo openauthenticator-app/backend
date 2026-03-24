@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer'
 import { Mailer, type MailerConstructorArguments } from './mailer'
 
 export class NodemailerMailer extends Mailer {
@@ -15,6 +14,7 @@ export class NodemailerMailer extends Mailer {
       text?: string
     },
   ): Promise<void> {
+    const nodemailer = await import('nodemailer')
     const mailer = nodemailer.createTransport({
       host: this.host,
       port: this.port,
