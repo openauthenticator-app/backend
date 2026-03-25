@@ -132,7 +132,7 @@ export class EmailProvider extends AuthProvider {
       const mailer = await Mailer.getBackendConfigMailer()
       await mailer.sendEmail({
         to: email,
-        subject: 'Login to Open Authenticator',
+        subject: 'Log in to Open Authenticator',
         html: `
           <p>
             Hello,

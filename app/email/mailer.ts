@@ -1,6 +1,6 @@
-import { NodeMailer, type NodemailerMailerOptions } from './nodemailer'
-import { WorkerMailer, type WorkerMailerOptions } from './workermailer'
-import { SimpleMailer, type SimpleMailerOptions } from './simplemailer'
+import type { NodemailerMailerOptions } from './nodemailer'
+import type { WorkerMailerOptions } from './workermailer'
+import type { SimpleMailerOptions } from './simplemailer'
 
 export type MailerLibrary = 'nodemailer' | 'workermailer' | 'simplemailer'
 
@@ -21,6 +21,7 @@ export abstract class Mailer {
   public static async getBackendConfigMailer(): Promise<Mailer> {
     switch (backendConfig.authentication.providers.email.library) {
       case 'nodemailer': {
+        const { NodeMailer } = await import('./nodemailer')
         return new NodeMailer(
           {
             host: backendConfig.authentication.providers.email.host,
@@ -32,6 +33,7 @@ export abstract class Mailer {
         )
       }
       case 'workermailer': {
+        const { WorkerMailer } = await import('./workermailer')
         return new WorkerMailer(
           {
             host: backendConfig.authentication.providers.email.host,
@@ -43,6 +45,7 @@ export abstract class Mailer {
         )
       }
       case 'simplemailer': {
+        const { SimpleMailer } = await import('./simplemailer')
         return new SimpleMailer(
           {
             url: backendConfig.authentication.providers.email.url,
