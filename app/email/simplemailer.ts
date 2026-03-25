@@ -18,7 +18,7 @@ export class SimpleMailer extends Mailer {
 
   public override async sendEmail(options: MailSendOptions): Promise<void> {
     const response = await fetch(
-      this.url,
+      `${this.url}/send.php`,
       {
         method: 'POST',
         headers: {
