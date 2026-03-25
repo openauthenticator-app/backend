@@ -2,7 +2,7 @@ import {
   AuthProvider,
   InvalidAuthorizationCodeError,
   type Mode,
-  ProviderAlreadyLinkedError
+  ProviderAlreadyLinkedError,
 } from '~/app/auth/providers/provider'
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
@@ -131,7 +131,6 @@ export class EmailProvider extends AuthProvider {
     else {
       const mailer = await Mailer.getBackendConfigMailer()
       await mailer.sendEmail({
-        from: backendConfig.authentication.providers.email.from,
         to: email,
         subject: 'Login to Open Authenticator',
         html: `
@@ -149,6 +148,13 @@ export class EmailProvider extends AuthProvider {
             If you haven't asked to log in, you can safely ignore this email.
           </p>
         `,
+        text: `Hello,
+
+We have received a login request to Open Authenticator. To proceed, you can either enter the code ${verificationCode} or open the link below in your browser :
+
+${magicLink}
+
+If you haven't asked to log in, you can safely ignore this email.`,
       })
     }
   }

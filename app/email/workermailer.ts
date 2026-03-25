@@ -1,19 +1,27 @@
-import { Mailer, type MailerConstructorArguments } from './mailer'
+import { Mailer, type MailSendOptions } from './mailer'
+import type { NodemailerMailerOptions } from './nodemailer'
 
-export class CloudflareWorkerMailer extends Mailer {
-  constructor(options: MailerConstructorArguments) {
-    super(options)
+export type WorkerMailerOptions = NodemailerMailerOptions
+
+export class WorkerMailer extends Mailer {
+  private readonly host: string
+  private readonly port: number
+  private readonly secure: boolean
+  private readonly username: string
+  private readonly password: string
+  private readonly from?: string
+
+  constructor(options: WorkerMailerOptions) {
+    super()
+    this.host = options.host
+    this.port = options.port
+    this.secure = options.secure
+    this.username = options.username
+    this.password = options.password
+    this.from = options.from
   }
 
-  public async sendEmail(
-    options: {
-      from?: string
-      to: string
-      subject: string
-      html?: string
-      text?: string
-    },
-  ): Promise<void> {
+  public async sendEmail(options: MailSendOptions): Promise<void> {
     const { WorkerMailer } = await import('worker-mailer')
     await WorkerMailer.send({
       credentials: {
@@ -25,7 +33,7 @@ export class CloudflareWorkerMailer extends Mailer {
       secure: this.secure,
       authType: ['login', 'plain'],
     }, {
-      from: options.from ?? this.username,
+      from: this.from ?? this.username,
       to: options.to,
       subject: options.subject,
       html: options.html,

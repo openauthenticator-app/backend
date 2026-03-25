@@ -3,6 +3,7 @@ import type { Range } from 'semver'
 import type { BuiltinDriverName, BuiltinDriverOptions } from 'unstorage'
 import type { DatabaseConnectionConfig } from 'nitro/types'
 import type { CookieSerializeOptions } from '~/app/auth/providers/provider'
+import type { MailerLibrary, MailerOptions } from '~/app/email'
 import 'dotenv/config'
 
 export interface BackendConfig {
@@ -53,14 +54,8 @@ export interface BackendConfig {
         tenantId?: string
       }
       email: {
-        library: 'auto' | 'nodemailer' | 'worker-mailer'
-        host?: string
-        port?: number
-        secure?: boolean
-        username?: string
-        password?: string
-        from?: string
-      }
+        [K in MailerLibrary]: { library: K } & MailerOptions[K];
+      }[MailerLibrary]
     }
   }
   sentryDsn?: string
@@ -135,12 +130,12 @@ export default {
         tenantId: process.env.MICROSOFT_TENANT_ID,
       },
       email: {
-        library: 'auto',
-        host: process.env.EMAIL_HOST,
+        library: 'nodemailer',
+        host: process.env.EMAIL_HOST ?? 'smtp.example.com',
         port: 465,
         secure: true,
-        username: process.env.EMAIL_USERNAME,
-        password: process.env.EMAIL_PASSWORD,
+        username: process.env.EMAIL_USERNAME ?? 'username',
+        password: process.env.EMAIL_PASSWORD ?? 'password',
         from: (() => {
           if (process.env.EMAIL_USERNAME?.toString().includes('@')) {
             return process.env.EMAIL_USERNAME
