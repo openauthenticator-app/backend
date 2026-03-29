@@ -29,11 +29,14 @@ export const requireAppVersionHeader = (
 }
 
 function validateAppVersion(appVersion: string): string | null {
+  if (appVersion.endsWith('-dev')) {
+    appVersion = appVersion.substring(0, appVersion.length - '-dev'.length)
+  }
   const parts = appVersion.match(/^[0-9]+\.[0-9]+\.[0-9]+$/)
   if (!parts) {
     return 'invalid version provided'
   }
-  if (!semver.satisfies(appVersion, backendConfig.appVersionRange)) {
+  if (!semver.satisfies(appVersion, backendConfig.appVersionRange, { includePrerelease: false })) {
     return `unsupported version provided, must satisfy ${backendConfig.appVersionRange}`
   }
   return null
