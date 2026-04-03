@@ -12,7 +12,7 @@ export const redirectIntoApp = (url: URL | string): ReturnType<typeof redirect> 
   if (urlString.startsWith('openauthenticator://') && process.env.NODE_ENV !== 'production') {
     console.log(`Trying to open ${urlString}...`)
   }
-  return redirect(urlString, 300)
+  return redirect(urlString, 302)
 }
 
 export const booleanToNumber = (value: boolean): 0 | 1 => value ? 1 : 0
