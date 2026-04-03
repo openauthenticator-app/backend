@@ -194,7 +194,7 @@ If you haven't asked to log in, you can safely ignore this email.`,
       throw new InvalidVerificationCodeError()
     }
 
-    if (this.hasExpired(dbVerification)) {
+    if (this.hasExpired(dbVerification, 'verification')) {
       await this.deleteVerification(email, { verificationCode })
       throw new ExpiredCodeError()
     }
@@ -202,7 +202,7 @@ If you haven't asked to log in, you can safely ignore this email.`,
     const emailAuthorizationCode = generateRandomString()
     const authorizationCodeExpiration = Date.now() + 5 * 60 * 1000
     const { success } = await db
-      .prepare('UPDATE emailVerifications SET authorizationCode = ?, verificationCode = NULL, authorizationCodeExpiration = ? WHERE email = ? AND verificationCode = ?')
+      .prepare('UPDATE emailVerifications SET authorizationCode = ?, authorizationCodeExpiration = ?, verificationCode = NULL, verificationCodeExpiration = NULL WHERE email = ? AND verificationCode = ?')
       .bind(emailAuthorizationCode, authorizationCodeExpiration, email, verificationCode)
       .run()
 
@@ -233,7 +233,7 @@ If you haven't asked to log in, you can safely ignore this email.`,
       throw new InvalidAuthorizationCodeError()
     }
 
-    if (this.hasExpired(dbVerification)) {
+    if (this.hasExpired(dbVerification, 'authorization')) {
       await this.deleteVerification(dbVerification.email, { authorizationCode })
       throw new ExpiredCodeError()
     }
