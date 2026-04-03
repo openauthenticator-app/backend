@@ -12,6 +12,9 @@ const protectedPaths = [
   {
     prefix: '/user',
   },
+  {
+    prefix: '/ping',
+  },
 ]
 
 export default defineHandler(async (event: H3Event) => {
