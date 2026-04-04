@@ -21,7 +21,7 @@ export default defineHandler(async (event: H3Event) => {
   event.res.headers.set('Backend-Version', pkg.version)
   event.res.headers.set('Backend-App-Version-Range', '>=2.0.0 <3.0.0')
   let ignore = true
-  const path = new URL(event.req.url).pathname
+  const path = event.url.pathname
   for (const { prefix, exclusionSuffixes = [] } of protectedPaths) {
     if (path.startsWith(prefix) && !exclusionSuffixes.some(suffix => path.endsWith(suffix))) {
       ignore = false

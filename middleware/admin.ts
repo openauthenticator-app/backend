@@ -2,8 +2,7 @@ import { defineHandler, type H3Event } from 'nitro/h3'
 import { AppError } from '~/app/error'
 
 export default defineHandler(async (event: H3Event) => {
-  const url = event.req.url
-  if (!url.startsWith('/admin')) {
+  if (!event.url.pathname.startsWith('/admin')) {
     return
   }
   const targetHeader = backendConfig.adminHeader

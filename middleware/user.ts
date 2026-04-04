@@ -1,8 +1,7 @@
 import { defineHandler, type H3Event } from 'nitro/h3'
 
 export default defineHandler(async (event: H3Event) => {
-  const url = event.req.url
-  if (url.startsWith('/totps') || url.startsWith('/user')) {
+  if (event.url.pathname.startsWith('/totps') || event.url.pathname.startsWith('/user')) {
     event.context.user = await useUser(event)
   }
 })
