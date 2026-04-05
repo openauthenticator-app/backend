@@ -100,7 +100,7 @@ export default {
     cookiesOptions: {
       path: '/',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       maxAge: process.env.NODE_ENV === 'production' ? 60 * 15 : 60 * 60,
       sameSite: 'lax',
     },
