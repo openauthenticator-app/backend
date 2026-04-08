@@ -135,8 +135,7 @@ Open Authenticator Backend is licensed under the [GNU General Public License v3.
 ## Contribute
 
 If you like this project, there are a lot of ways for you to contribute to it !
-Please read the [contribution guide](https://github.com/Skyost/OpenAuthenticator/blob/main/CONTRIBUTING.md)
-before getting started.
+Please read the [contribution guide](/blob/main/CONTRIBUTING.md) before getting started.
 
 ### Report bugs or suggest new features
 
