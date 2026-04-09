@@ -33,7 +33,7 @@ _If you like this project, consider starring it on GitHub !_
 
 ## Self-hosting instructions
 
-### Prerequisites
+### Requirements
 
 Open Authenticator Backend is powered by [Nitro](https://nitro.build/). You will need the following in order to be able to run it :
 
@@ -126,7 +126,7 @@ To (re)create the default tables, you'll have to head to `/admin/reset` with you
 
 ### Using it in the app
 
-To use your own backend in the app, you'll have to go to the settings, and then choose _Change backend URL_. Put your own backend URL here et voilà !
+To use your own backend in the app, you'll have to go to the settings, and then choose _Change backend URL_. Put your own backend URL here, et voilà !
 
 ## License
 
