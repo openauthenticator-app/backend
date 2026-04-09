@@ -130,32 +130,7 @@ export class EmailProvider extends AuthProvider {
     }
     else {
       const mailer = await Mailer.getBackendConfigMailer()
-      await mailer.sendEmail({
-        to: email,
-        subject: 'Log in to Open Authenticator',
-        html: `
-          <p>
-            Hello,
-          </p>
-          <p>
-            We have received a login request to Open Authenticator. To proceed, you can either enter the code
-            <strong>${verificationCode}</strong> in the application or click the link below :
-          </p>
-          <p>
-            &gt; <a href="${magicLink}">${magicLink}</a>
-          </p>
-          <p>
-            If you haven't asked to log in, you can safely ignore this email.
-          </p>
-        `,
-        text: `Hello,
-
-We have received a login request to Open Authenticator. To proceed, you can either enter the code ${verificationCode} or open the link below in your browser :
-
-${magicLink}
-
-If you haven't asked to log in, you can safely ignore this email.`,
-      })
+      await mailer.sendVerificationCode(email, verificationCode, magicLink.toString())
     }
   }
 

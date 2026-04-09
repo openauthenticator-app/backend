@@ -1,20 +1,20 @@
 import type { NodemailerMailerOptions } from './nodemailer'
 import type { WorkerMailerOptions } from './workermailer'
-import type { SimpleMailerOptions } from './simplemailer'
+import type { SimpleMailerFreeModeOptions, SimpleMailerTemplateModeOptions } from './simplemailer'
 
-export type MailerLibrary = 'nodemailer' | 'workermailer' | 'simplemailer'
+export type MailerLibrary = 'nodemailer' | 'workermailer' | 'simplemailer-free' | 'simplemailer-template'
 
 export type MailerOptions = {
-  nodemailer: NodemailerMailerOptions
-  workermailer: WorkerMailerOptions
-  simplemailer: SimpleMailerOptions
+  'nodemailer': NodemailerMailerOptions
+  'workermailer': WorkerMailerOptions
+  'simplemailer-free': SimpleMailerFreeModeOptions
+  'simplemailer-template': SimpleMailerTemplateModeOptions
 }
 
-export type MailSendOptions = {
-  to: string
-  subject: string
-  html?: string
-  text?: string
+export interface FreeMailerOptions {
+  getSubject(email: string, verificationCode: string, magicLink: string): string
+  getHtml(email: string, verificationCode: string, magicLink: string): string | undefined
+  getText(email: string, verificationCode: string, magicLink: string): string | undefined
 }
 
 export abstract class Mailer {
@@ -22,39 +22,22 @@ export abstract class Mailer {
     switch (backendConfig.authentication.providers.email.library) {
       case 'nodemailer': {
         const { NodeMailer } = await import('./nodemailer')
-        return new NodeMailer(
-          {
-            host: backendConfig.authentication.providers.email.host,
-            port: backendConfig.authentication.providers.email.port,
-            secure: backendConfig.authentication.providers.email.secure ?? true,
-            username: backendConfig.authentication.providers.email.username,
-            password: backendConfig.authentication.providers.email.password,
-          },
-        )
+        return new NodeMailer(backendConfig.authentication.providers.email)
       }
       case 'workermailer': {
         const { WorkerMailer } = await import('./workermailer')
-        return new WorkerMailer(
-          {
-            host: backendConfig.authentication.providers.email.host,
-            port: backendConfig.authentication.providers.email.port,
-            secure: backendConfig.authentication.providers.email.secure ?? true,
-            username: backendConfig.authentication.providers.email.username,
-            password: backendConfig.authentication.providers.email.password,
-          },
-        )
+        return new WorkerMailer(backendConfig.authentication.providers.email)
       }
-      case 'simplemailer': {
-        const { SimpleMailer } = await import('./simplemailer')
-        return new SimpleMailer(
-          {
-            url: backendConfig.authentication.providers.email.url,
-            apiKey: backendConfig.authentication.providers.email.apiKey,
-          },
-        )
+      case 'simplemailer-free': {
+        const { SimpleMailerFreeMode } = await import('./simplemailer')
+        return new SimpleMailerFreeMode(backendConfig.authentication.providers.email)
+      }
+      case 'simplemailer-template': {
+        const { SimpleMailerTemplateMode } = await import('./simplemailer')
+        return new SimpleMailerTemplateMode(backendConfig.authentication.providers.email)
       }
     }
   }
 
-  public abstract sendEmail(options: MailSendOptions): Promise<void>
+  public abstract sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void>
 }

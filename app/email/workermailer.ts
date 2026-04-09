@@ -1,43 +1,33 @@
-import { Mailer, type MailSendOptions } from './mailer'
+import { Mailer } from './mailer'
 import type { NodemailerMailerOptions } from './nodemailer'
 
 export type WorkerMailerOptions = NodemailerMailerOptions
 
 export class WorkerMailer extends Mailer {
-  private readonly host: string
-  private readonly port: number
-  private readonly secure: boolean
-  private readonly username: string
-  private readonly password: string
-  private readonly from?: string
+  private readonly options: WorkerMailerOptions
 
   constructor(options: WorkerMailerOptions) {
     super()
-    this.host = options.host
-    this.port = options.port
-    this.secure = options.secure
-    this.username = options.username
-    this.password = options.password
-    this.from = options.from
+    this.options = options
   }
 
-  public async sendEmail(options: MailSendOptions): Promise<void> {
+  public async sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void> {
     const { WorkerMailer } = await import('worker-mailer')
     await WorkerMailer.send({
       credentials: {
-        username: this.username,
-        password: this.password,
+        username: this.options.username,
+        password: this.options.password,
       },
-      host: this.host,
-      port: this.port,
-      secure: this.secure,
+      host: this.options.host,
+      port: this.options.port,
+      secure: this.options.secure,
       authType: ['login', 'plain'],
     }, {
-      from: this.from ?? this.username,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
+      from: this.options.from ?? this.options.username,
+      to: email,
+      subject: this.options.getSubject(email, verificationCode, magicLink),
+      html: this.options.getHtml(email, verificationCode, magicLink),
+      text: this.options.getText(email, verificationCode, magicLink),
     })
   }
 }

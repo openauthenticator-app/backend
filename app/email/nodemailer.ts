@@ -1,6 +1,6 @@
-import { Mailer, type MailSendOptions } from './mailer'
+import { type FreeMailerOptions, Mailer } from './mailer'
 
-export type NodemailerMailerOptions = {
+export interface NodemailerMailerOptions extends FreeMailerOptions {
   host: string
   port: number
   secure: boolean
@@ -10,40 +10,30 @@ export type NodemailerMailerOptions = {
 }
 
 export class NodeMailer extends Mailer {
-  private readonly host: string
-  private readonly port: number
-  private readonly secure: boolean
-  private readonly username: string
-  private readonly password: string
-  private readonly from?: string
+  private readonly options: NodemailerMailerOptions
 
   constructor(options: NodemailerMailerOptions) {
     super()
-    this.host = options.host
-    this.port = options.port
-    this.secure = options.secure
-    this.username = options.username
-    this.password = options.password
-    this.from = options.from
+    this.options = options
   }
 
-  public async sendEmail(options: MailSendOptions): Promise<void> {
+  public async sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void> {
     const nodemailer = await import('nodemailer')
     const mailer = nodemailer.createTransport({
-      host: this.host,
-      port: this.port,
-      secure: this.secure,
+      host: this.options.host,
+      port: this.options.port,
+      secure: this.options.secure,
       auth: {
-        user: this.username,
-        pass: this.password,
+        user: this.options.username,
+        pass: this.options.password,
       },
     })
     await mailer.sendMail({
-      from: this.from ?? this.username,
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text,
+      from: this.options.from ?? this.options.username,
+      to: email,
+      subject: this.options.getSubject(email, verificationCode, magicLink),
+      html: this.options.getHtml(email, verificationCode, magicLink),
+      text: this.options.getText(email, verificationCode, magicLink),
     })
     mailer.close()
   }
