@@ -9,7 +9,7 @@ interface SimpleMailerOptions {
 export interface SimpleMailerFreeModeOptions extends FreeMailerOptions, SimpleMailerOptions {}
 
 export interface SimpleMailerTemplateModeOptions extends SimpleMailerOptions {
-  createParams(email: string, verificationCode: string): unknown
+  createParams(email: string, verificationCode: string, magicLink: string): unknown
 }
 
 abstract class SimpleMailer<T extends SimpleMailerOptions> extends Mailer {
@@ -61,10 +61,10 @@ export class SimpleMailerTemplateMode extends SimpleMailer<SimpleMailerTemplateM
     super(options)
   }
 
-  createBody(email: string, verificationCode: string): unknown {
+  createBody(email: string, verificationCode: string, magicLink: string): unknown {
     return {
       to: email,
-      params: this.options.createParams(email, verificationCode),
+      params: this.options.createParams(email, verificationCode, magicLink),
     }
   }
 }
