@@ -12,9 +12,9 @@ export type MailerOptions = {
 }
 
 export interface FreeMailerOptions {
-  getSubject(email: string, verificationCode: string, magicLink: string): string
-  getHtml(email: string, verificationCode: string, magicLink: string): string | undefined
-  getText(email: string, verificationCode: string, magicLink: string): string | undefined
+  getSubject(email: string, verificationCode: string, magicLink: string, locale?: string): string
+  getHtml(email: string, verificationCode: string, magicLink: string, locale?: string): string | undefined
+  getText(email: string, verificationCode: string, magicLink: string, locale?: string): string | undefined
 }
 
 export abstract class Mailer {
@@ -39,5 +39,5 @@ export abstract class Mailer {
     }
   }
 
-  public abstract sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void>
+  public abstract sendVerificationCode(email: string, verificationCode: string, magicLink: string, locale?: string): Promise<void>
 }

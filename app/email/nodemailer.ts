@@ -17,7 +17,7 @@ export class NodeMailer extends Mailer {
     this.options = options
   }
 
-  public async sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void> {
+  public async sendVerificationCode(email: string, verificationCode: string, magicLink: string, locale?: string): Promise<void> {
     const nodemailer = await import('nodemailer')
     const mailer = nodemailer.createTransport({
       host: this.options.host,
@@ -31,9 +31,9 @@ export class NodeMailer extends Mailer {
     await mailer.sendMail({
       from: this.options.from ?? this.options.username,
       to: email,
-      subject: this.options.getSubject(email, verificationCode, magicLink),
-      html: this.options.getHtml(email, verificationCode, magicLink),
-      text: this.options.getText(email, verificationCode, magicLink),
+      subject: this.options.getSubject(email, verificationCode, magicLink, locale),
+      html: this.options.getHtml(email, verificationCode, magicLink, locale),
+      text: this.options.getText(email, verificationCode, magicLink, locale),
     })
     mailer.close()
   }

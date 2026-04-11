@@ -9,7 +9,7 @@ interface SimpleMailerOptions {
 export interface SimpleMailerFreeModeOptions extends FreeMailerOptions, SimpleMailerOptions {}
 
 export interface SimpleMailerTemplateModeOptions extends SimpleMailerOptions {
-  createParams(email: string, verificationCode: string, magicLink: string): unknown
+  createParams(email: string, verificationCode: string, magicLink: string, locale?: string): unknown
 }
 
 abstract class SimpleMailer<T extends SimpleMailerOptions> extends Mailer {
@@ -20,7 +20,7 @@ abstract class SimpleMailer<T extends SimpleMailerOptions> extends Mailer {
     this.options = options
   }
 
-  public override async sendVerificationCode(email: string, verificationCode: string, magicLink: string): Promise<void> {
+  public override async sendVerificationCode(email: string, verificationCode: string, magicLink: string, locale?: string): Promise<void> {
     const response = await fetch(
       `${this.options.url}/send.php`,
       {
@@ -29,7 +29,7 @@ abstract class SimpleMailer<T extends SimpleMailerOptions> extends Mailer {
           'X-Api-Key': this.options.apiKey,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(this.createBody(email, verificationCode, magicLink)),
+        body: JSON.stringify(this.createBody(email, verificationCode, magicLink, locale)),
       },
     )
     const jsonResponse = await response.json()
@@ -38,7 +38,7 @@ abstract class SimpleMailer<T extends SimpleMailerOptions> extends Mailer {
     }
   }
 
-  abstract createBody(email: string, verificationCode: string, magicLink: string): unknown
+  abstract createBody(email: string, verificationCode: string, magicLink: string, locale?: string): unknown
 }
 
 export class SimpleMailerFreeMode extends SimpleMailer<SimpleMailerFreeModeOptions> {
@@ -46,12 +46,12 @@ export class SimpleMailerFreeMode extends SimpleMailer<SimpleMailerFreeModeOptio
     super(options)
   }
 
-  createBody(email: string, verificationCode: string, magicLink: string): unknown {
+  createBody(email: string, verificationCode: string, magicLink: string, locale?: string): unknown {
     return {
       to: email,
-      subject: this.options.getSubject(email, verificationCode, magicLink),
-      html: this.options.getHtml(email, verificationCode, magicLink),
-      text: this.options.getText(email, verificationCode, magicLink),
+      subject: this.options.getSubject(email, verificationCode, magicLink, locale),
+      html: this.options.getHtml(email, verificationCode, magicLink, locale),
+      text: this.options.getText(email, verificationCode, magicLink, locale),
     }
   }
 }
@@ -61,10 +61,11 @@ export class SimpleMailerTemplateMode extends SimpleMailer<SimpleMailerTemplateM
     super(options)
   }
 
-  createBody(email: string, verificationCode: string, magicLink: string): unknown {
+  createBody(email: string, verificationCode: string, magicLink: string, locale?: string): unknown {
     return {
       to: email,
-      params: this.options.createParams(email, verificationCode, magicLink),
+      locale,
+      params: this.options.createParams(email, verificationCode, magicLink, locale),
     }
   }
 }

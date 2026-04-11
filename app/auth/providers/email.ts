@@ -51,9 +51,12 @@ export class EmailProvider extends AuthProvider {
       if (!('email' in query) || typeof query.email !== 'string') {
         return false
       }
+      if ('locale' in query && (typeof query.locale !== 'string' || !/^[A-Za-z]{2,4}([_-][A-Za-z]{4})?([_-]([A-Za-z]{2}|[0-9]{3}))?$/.test(query.locale))) {
+        return false
+      }
       return isValidEmail(query.email)
     }
-    const { email: unnormalizedEmail, mode } = await getValidatedQuery<H3Event, { email: string, mode: Mode }>(event, validateBody)
+    const { email: unnormalizedEmail, mode, locale } = await getValidatedQuery<H3Event, { email: string, mode: Mode, locale: string | undefined }>(event, validateBody)
     const email = unnormalizedEmail.toLowerCase().trim()
 
     let userId: string | null = null
@@ -116,12 +119,12 @@ export class EmailProvider extends AuthProvider {
         .bind(email, userId, verificationCode, verificationCodeExpiration, cancelCode)
         .run()
 
-      await this.sendEmail(email, verificationCode)
+      await this.sendEmail(email, verificationCode, locale)
     }
     return url
   }
 
-  private async sendEmail(email: string, verificationCode: string) {
+  private async sendEmail(email: string, verificationCode: string, locale?: string) {
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('verificationCode', verificationCode)
     magicLink.searchParams.append('email', email)
@@ -130,7 +133,7 @@ export class EmailProvider extends AuthProvider {
     }
     else {
       const mailer = await Mailer.getBackendConfigMailer()
-      await mailer.sendVerificationCode(email, verificationCode, magicLink.toString())
+      await mailer.sendVerificationCode(email, verificationCode, magicLink.toString(), locale)
     }
   }
 
