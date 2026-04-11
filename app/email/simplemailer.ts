@@ -62,11 +62,14 @@ export class SimpleMailerTemplateMode extends SimpleMailer<SimpleMailerTemplateM
   }
 
   createBody(email: string, verificationCode: string, magicLink: string, locale?: string): unknown {
-    return {
+    const result: Record<string, unknown> = {
       to: email,
-      locale,
       params: this.options.createParams(email, verificationCode, magicLink, locale),
     }
+    if (locale) {
+      result.locale = locale
+    }
+    return result
   }
 }
 
