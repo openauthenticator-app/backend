@@ -9,7 +9,6 @@ import { AppError } from '~/app/error'
 import { Mailer } from '~/app/email'
 import crypto from 'node:crypto'
 import { getValidatedQuery, type H3Event, readValidatedBody } from 'nitro/h3'
-import type { Database } from 'db0'
 
 export class EmailProvider extends AuthProvider {
   constructor() {
@@ -29,12 +28,16 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
-    const { email, cancelCode } = await readValidatedBody<H3Event, { email: string, cancelCode: string }>(event, validateBody)
-    const db: Database = useDatabase()
+
+    const { email: rawEmail, cancelCode } = await readValidatedBody<H3Event, { email: string, cancelCode: string }>(event, validateBody)
+    const email = this.normalizeEmail(rawEmail)
+
+    const db = useDatabaseWithMetadata()
     const verification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND cancelCode = ? LIMIT 1')
       .bind(email, cancelCode)
       .get()) as DbEmailVerification | undefined
+
     if (verification) {
       await this.deleteVerification(email, { cancelCode })
     }
@@ -56,8 +59,9 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
+
     const { email: unnormalizedEmail, mode, locale } = await getValidatedQuery<H3Event, { email: string, mode: Mode, locale: string | undefined }>(event, validateBody)
-    const email = unnormalizedEmail.toLowerCase().trim()
+    const email = this.normalizeEmail(unnormalizedEmail)
 
     let userId: string | null = null
     if (mode === 'link') {
@@ -68,12 +72,14 @@ export class EmailProvider extends AuthProvider {
       userId = user.id
     }
 
-    const db: Database = useDatabase()
+    const db = useDatabaseWithMetadata()
+
     if (userId) {
       const userPendingDbVerification = (await db
         .prepare('SELECT * FROM emailVerifications WHERE userId = ? LIMIT 1')
         .bind(userId)
         .get()) as DbEmailVerification | undefined
+
       if (userPendingDbVerification) {
         if (!this.hasExpired(userPendingDbVerification)) {
           throw new UserHasPendingVerificationError()
@@ -99,6 +105,7 @@ export class EmailProvider extends AuthProvider {
         sendVerificationMail = true
       }
     }
+
     if (sendVerificationMail) {
       const generateCode = () => {
         const alphabet = '0123456789ABCDEFGHIJLMNOPQRSTUVWXYZ'
@@ -114,13 +121,18 @@ export class EmailProvider extends AuthProvider {
       const cancelCode = generateRandomString()
       url.searchParams.append('cancelCode', cancelCode)
 
-      await db
+      const insertResult = await db
         .prepare('INSERT INTO emailVerifications (email, userId, verificationCode, verificationCodeExpiration, cancelCode) VALUES (?, ?, ?, ?, ?)')
         .bind(email, userId, verificationCode, verificationCodeExpiration, cancelCode)
         .run()
 
+      if (!hasExactlyOneChange(insertResult)) {
+        throw new VerificationCreationFailedError()
+      }
+
       await this.sendEmail(email, verificationCode, locale)
     }
+
     return url
   }
 
@@ -128,6 +140,7 @@ export class EmailProvider extends AuthProvider {
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('verificationCode', verificationCode)
     magicLink.searchParams.append('email', email)
+
     if (process.env.NODE_ENV === 'development') {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
     }
@@ -150,19 +163,22 @@ export class EmailProvider extends AuthProvider {
       }
       return isValidEmail(query.email)
     }
-    let email, verificationCode
+
+    let email: string
+    let verificationCode: string
+
     if (event.req.method === 'POST') {
       const result = await readValidatedBody<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
-      email = result.email
+      email = this.normalizeEmail(result.email)
       verificationCode = result.verificationCode
     }
     else {
       const result = await getValidatedQuery<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
-      email = result.email
+      email = this.normalizeEmail(result.email)
       verificationCode = result.verificationCode
     }
 
-    const db: Database = useDatabase()
+    const db = useDatabaseWithMetadata()
     const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE email = ? AND verificationCode = ? LIMIT 1')
       .bind(email, verificationCode)
@@ -179,12 +195,13 @@ export class EmailProvider extends AuthProvider {
 
     const emailAuthorizationCode = generateRandomString()
     const authorizationCodeExpiration = Date.now() + 5 * 60 * 1000
-    const { success } = await db
+
+    const updateResult = await db
       .prepare('UPDATE emailVerifications SET authorizationCode = ?, authorizationCodeExpiration = ?, verificationCode = NULL, verificationCodeExpiration = NULL WHERE email = ? AND verificationCode = ?')
       .bind(emailAuthorizationCode, authorizationCodeExpiration, email, verificationCode)
       .run()
 
-    if (!success) {
+    if (!hasExactlyOneChange(updateResult)) {
       throw new TokenCreationFailedError()
     }
 
@@ -201,12 +218,15 @@ export class EmailProvider extends AuthProvider {
       }
       return true
     }
+
     const { authorizationCode } = await readValidatedBody<H3Event, { authorizationCode: string }>(event, validateBody)
-    const db: Database = useDatabase()
+
+    const db = useDatabaseWithMetadata()
     const dbVerification = (await db
       .prepare('SELECT * FROM emailVerifications WHERE authorizationCode = ? LIMIT 1')
       .bind(authorizationCode)
       .get()) as DbEmailVerification | undefined
+
     if (!dbVerification) {
       throw new InvalidAuthorizationCodeError()
     }
@@ -223,16 +243,23 @@ export class EmailProvider extends AuthProvider {
   private hasExpired(verification: DbEmailVerification, code?: 'verification' | 'authorization') {
     const hasVerificationExpired = verification.verificationCodeExpiration !== null && verification.verificationCodeExpiration < Date.now()
     const hasAuthorizationExpired = verification.authorizationCodeExpiration !== null && verification.authorizationCodeExpiration < Date.now()
+
     if (!code) {
       return hasVerificationExpired || hasAuthorizationExpired
     }
+
     return code === 'verification' ? hasVerificationExpired : hasAuthorizationExpired
   }
 
-  private async deleteVerification(email: string, options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string } = {}) {
-    const db: Database = useDatabase()
-    const fields = ['email']
-    const values = [email]
+  private async deleteVerification(
+    email: string,
+    options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string } = {},
+  ) {
+    const db = useDatabaseWithMetadata()
+
+    const fields: string[] = ['email']
+    const values: (string | null)[] = [email]
+
     if (options.verificationCode) {
       fields.push('verificationCode')
       values.push(options.verificationCode)
@@ -249,18 +276,25 @@ export class EmailProvider extends AuthProvider {
       fields.push('cancelCode')
       values.push(options.cancelCode)
     }
-    const { success } = await db
-      .prepare(`DELETE FROM emailVerifications WHERE ${fields.join(' = ? AND ')} = ?`)
+
+    const deleteResult = await db
+      .prepare(`DELETE FROM emailVerifications WHERE ${fields.map(field => `${field} = ?`).join(' AND ')}`)
       .bind(...values)
       .run()
-    if (!success) {
+
+    if (!hasExactlyOneChange(deleteResult)) {
       throw new DeleteVerificationFailedError()
     }
+  }
+
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase()
   }
 }
 
 interface DbEmailVerification {
   email: string
+  userId: string | null
   verificationCode: string | null
   verificationCodeExpiration: number | null
   authorizationCode: string | null
@@ -295,5 +329,11 @@ class TokenCreationFailedError extends AppError {
 class DeleteVerificationFailedError extends AppError {
   constructor() {
     super('Failed to delete existing verification.', DeleteVerificationFailedError)
+  }
+}
+
+class VerificationCreationFailedError extends AppError {
+  constructor() {
+    super('Failed to create verification.', VerificationCreationFailedError)
   }
 }

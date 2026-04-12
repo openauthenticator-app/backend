@@ -1,6 +1,5 @@
 import type { AuthProvider } from '~/app/auth/providers/provider'
 import { TotpBucket } from '~/app/totp'
-import type { Database } from 'db0'
 
 export type ProviderId = OAuthProviderId | 'email'
 export type OAuthProviderId = `${AuthProviderId}Id`
@@ -30,7 +29,10 @@ export class User {
     return Object.keys(this.providersIds).length
   }
 
-  static async createInDatabase(providersIds: Partial<Record<ProviderId, string>>, options: { contributorPlan?: boolean, userId?: string } = {}) {
+  static async createInDatabase(
+    providersIds: Partial<Record<ProviderId, string>>,
+    options: { contributorPlan?: boolean, userId?: string } = {},
+  ) {
     if (Object.keys(providersIds).length === 0) {
       return null
     }
@@ -49,12 +51,15 @@ export class User {
       }
     }
 
-    const db: Database = useDatabase()
-    const { success } = await db
+    const db = useDatabaseWithMetadata()
+    const insertResult = await db
       .prepare(`INSERT INTO users (${fields.join(', ')}) VALUES (${values.map(() => '?').join(', ')})`)
       .bind(...values)
       .run()
-    return success ? new User(userId, contributorPlan, providersIds) : null
+
+    return insertResult.success && insertResult.changes === 1
+      ? new User(userId, contributorPlan, providersIds)
+      : null
   }
 
   static async findInDatabase(
@@ -73,7 +78,7 @@ export class User {
       return null
     }
 
-    const db: Database = useDatabase()
+    const db = useDatabaseWithMetadata()
     const dbUser = (await db
       .prepare(`SELECT * FROM users WHERE ${conditions.join(' AND ')} LIMIT 1`)
       .bind(...values)
@@ -86,12 +91,14 @@ export class User {
     const { id, contributorPlan, ...unfilteredProvidersIds } = dbUser
     const providersIds = unfilteredProvidersIds as Record<ProviderId, string | null>
     const filteredProvidersIds: Partial<Record<ProviderId, string>> = {}
+
     for (const providerId in providersIds) {
       const value = providersIds[providerId as ProviderId]
       if (value) {
         filteredProvidersIds[providerId as ProviderId] = value
       }
     }
+
     return new User(id, numberToBoolean(contributorPlan), filteredProvidersIds)
   }
 
@@ -100,7 +107,7 @@ export class User {
     const values: (string | number | null)[] = []
 
     for (const option in options) {
-      const value = (options as { [key: string]: string | boolean })[option]
+      const value = (options as { [key: string]: string | boolean | null | undefined })[option]
       fields.push(`${option} = ?`)
       values.push(typeof value === 'boolean' ? booleanToNumber(value) : value ?? null)
     }
@@ -110,13 +117,14 @@ export class User {
     }
 
     values.push(this.id)
-    const db: Database = useDatabase()
-    const { success } = await db
+
+    const db = useDatabaseWithMetadata()
+    const updateResult = await db
       .prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
       .bind(...values)
       .run()
 
-    return success
+    return !!updateResult.success && updateResult.changes === 1
   }
 
   async deleteFromDatabase(
@@ -125,23 +133,28 @@ export class User {
       deleteTotps?: boolean
     },
   ) {
-    const db: Database = useDatabase()
+    const db = useDatabaseWithMetadata()
     let success = true
+
     if (options?.deleteSessions) {
-      const { success: sessionDeleted } = await db
-        .prepare(`DELETE FROM sessions WHERE userId = ?`)
+      const deleteSessionsResult = await db
+        .prepare('DELETE FROM sessions WHERE userId = ?')
         .bind(this.id)
         .run()
-      success = success && sessionDeleted
+
+      success = success && !!deleteSessionsResult.success
     }
+
     if (options?.deleteTotps) {
       await TotpBucket.of(this).clear(true)
     }
-    const { success: userDeleted } = await db
-      .prepare(`DELETE FROM users WHERE id = ?`)
+
+    const deleteUserResult = await db
+      .prepare('DELETE FROM users WHERE id = ?')
       .bind(this.id)
       .run()
-    success = success && userDeleted
+
+    success = success && !!deleteUserResult.success && deleteUserResult.changes === 1
     return success
   }
 

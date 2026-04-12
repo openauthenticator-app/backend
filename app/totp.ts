@@ -39,7 +39,7 @@ export class TotpBucket {
   }
 
   static async pruneInactiveAccounts(days?: number) {
-    const db = useDatabase()
+    const db = useDatabaseWithMetadata()
     const ids = (await db.prepare('SELECT * FROM users WHERE contributorPlan = 0')
       .all()) as { id: string }[]
     for (const { id } of ids) {

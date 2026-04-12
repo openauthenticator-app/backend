@@ -17,31 +17,46 @@ export class Session {
   }
 
   static async pruneExpired() {
-    const db: Database = useDatabase()
-    const { success } = await db
+    const db: Database = useDatabaseWithMetadata()
+    const result = await db
       .prepare('DELETE FROM sessions WHERE expiration < ?')
       .bind(Date.now())
       .run()
-    return success
+
+    return !!result.success
   }
 
   static async initiate(userId: string, appClientId: string) {
     const session = new Session(generateRandomString(), userId)
     const accessToken = await session.generateToken('access')
     const refreshToken = await session.generateToken('refresh')
+
     if (!accessToken || !refreshToken) {
       throw new TokensGenerationError()
     }
-    const expiration = Date.now() + (typeof backendConfig.authentication.tokensTtl.refresh === 'number' ? backendConfig.authentication.tokensTtl.refresh : ms(backendConfig.authentication.tokensTtl.refresh as StringValue))
-    const db: Database = useDatabase()
-    const { success } = await db
+
+    const expiration = Date.now() + (
+      typeof backendConfig.authentication.tokensTtl.refresh === 'number'
+        ? backendConfig.authentication.tokensTtl.refresh
+        : ms(backendConfig.authentication.tokensTtl.refresh as StringValue)
+    )
+
+    const db = useDatabaseWithMetadata()
+    const insertResult = await db
       .prepare('INSERT INTO sessions (sessionId, userId, appClientId, tokenHash, expiration) VALUES (?, ?, ?, ?, ?)')
-      .bind(session.id, userId, appClientId, sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper), expiration)
+      .bind(
+        session.id,
+        userId,
+        appClientId,
+        sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper),
+        expiration,
+      )
       .run()
 
-    if (!success) {
+    if (!hasExactlyOneChange(insertResult)) {
       throw new SessionCreationError()
     }
+
     return {
       session,
       accessToken,
@@ -52,11 +67,13 @@ export class Session {
   static async fromAuthorizationHeader(event: H3Event) {
     const auth = event.req.headers.get('Authorization')
     assert(!!auth, new MissingAuthorizationHeaderError())
+
     const match = auth.match(/^Bearer\s+(.+)$/i)
     const token = match ? match[1] : null
     if (!token) {
       throw new MalformedAuthorizationHeaderError()
     }
+
     return await Session.fromToken(token, 'access')
   }
 
@@ -74,15 +91,18 @@ export class Session {
       }
       throw new InvalidPayloadError(kind ?? 'access')
     }
+
     if (payload && typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
       return new Session(payload.sid, payload.sub)
     }
+
     throw new InvalidTokenError(kind ?? 'access')
   }
 
   private async generateToken(tokenKind?: TokenKind) {
     const secret = new TextEncoder()
       .encode(tokenKind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access)
+
     return await new SignJWT({ sid: this.id })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -98,7 +118,8 @@ export class Session {
 
   async revoke(refreshToken: string, appClientId?: string) {
     const tokenHash = sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper)
-    const db: Database = useDatabase()
+    const db = useDatabaseWithMetadata()
+
     const dbSession = (await db
       .prepare('SELECT appClientId FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ? LIMIT 1')
       .bind(this.id, this.userId, tokenHash)
@@ -112,11 +133,12 @@ export class Session {
       throw new InvalidAppClientIdError()
     }
 
-    const { success } = await db
+    const deleteResult = await db
       .prepare('DELETE FROM sessions WHERE sessionId = ? AND userId = ? AND tokenHash = ?')
       .bind(this.id, this.userId, tokenHash)
       .run()
-    if (!success) {
+
+    if (!hasExactlyOneChange(deleteResult)) {
       throw new TokenRevocationError()
     }
   }
