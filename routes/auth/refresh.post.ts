@@ -13,7 +13,7 @@ export default defineHandler({
   handler: async (event: H3Event) => {
     const appEvent = event as AppEvent
     const { refreshToken } = await readValidatedBody<H3Event, { refreshToken: string }>(appEvent, validateBody)
-    const session = await Session.fromToken(refreshToken, 'refresh')
+    const session = await Session.decodeVerifiedToken(refreshToken, 'refresh')
     const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await session.refresh(refreshToken, appEvent.context.appClientId)
     return SuccessObject.fromData({
       accessToken: newAccessToken,

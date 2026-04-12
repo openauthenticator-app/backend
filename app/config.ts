@@ -22,6 +22,7 @@ export interface BackendConfig {
     }
   }
   authentication: {
+    statelessAccessTokens?: boolean
     database: DatabaseConnectionConfig
     tokensTtl: {
       access: StringValue | number
@@ -87,6 +88,7 @@ export default {
     },
   },
   authentication: {
+    statelessAccessTokens: true,
     database: {
       connector: 'sqlite',
       options: {

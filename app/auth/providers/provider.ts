@@ -3,7 +3,6 @@ import { AppError } from '~/app/error'
 import { Session } from '~/app/auth/session'
 import { User } from '~/app/user'
 import type { AppEvent } from '~/app/event'
-import { useUser } from '~/utils/user'
 import { deleteCookie, getCookie, getValidatedQuery, type H3Event, readValidatedBody, setCookie } from 'nitro/h3'
 
 export type Mode = 'login' | 'link'

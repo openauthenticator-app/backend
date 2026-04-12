@@ -6,18 +6,18 @@ export default defineHandler(async (event: H3Event) => {
     return
   }
   const targetHeader = backendConfig.adminHeader
-  if (!targetHeader && process.env.NODE_ENV === 'production') {
+  if (!targetHeader) {
     throw new AdminHeaderNotSetError()
   }
   const auth = event.req.headers.get('Authorization')
-  if (targetHeader && auth !== targetHeader) {
+  if (auth !== targetHeader) {
     throw new UnauthorizedError()
   }
 })
 
 class AdminHeaderNotSetError extends AppError {
   constructor() {
-    super('Admin header is not set in production.', AdminHeaderNotSetError, 500)
+    super('Admin header is not set.', AdminHeaderNotSetError, 500)
   }
 }
 

@@ -42,9 +42,10 @@ export class TotpBucket {
     const db = useDatabaseWithMetadata()
     const ids = (await db.prepare('SELECT * FROM users WHERE contributorPlan = 0')
       .all()) as { id: string }[]
+    const cutoff = Date.now() - (days ?? 0) * 24 * 60 * 60 * 1000
     for (const { id } of ids) {
       const sessions = (await db.prepare('SELECT sessionId FROM sessions WHERE userId = ? AND expiration > ?')
-        .bind(id, Date.now() + (days ?? 0) * 24 * 60 * 60 * 1000)
+        .bind(id, cutoff)
         .all()) as { sessionId: string }[]
       if (sessions.length > 0) {
         continue
@@ -84,6 +85,7 @@ export class TotpBucket {
       }
     }
     await this.storage.setItem(uuid, record)
+    await this.deletedStorage.removeItem(uuid)
   }
 
   public async delete(uuid: UUID) {
@@ -108,7 +110,9 @@ export class TotpBucket {
     }
     await this.storage.setItems(this.recordToStorageObjects(record))
     const deletedKeys = existingKeys.filter(key => !keysToSet.includes(key))
+    await Promise.all(deletedKeys.map(key => this.storage.removeItem(key)))
     await this.deletedStorage.setItems(this.keysToDeletedObjects(deletedKeys))
+    await Promise.all(keysToSet.map(key => this.deletedStorage.removeItem(key)))
   }
 
   public async clear(clearDeleted = false) {

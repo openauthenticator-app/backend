@@ -108,7 +108,7 @@ with bindings configured in a [`wrangler.json`](https://developers.cloudflare.co
 ```env
 NODE_ENV='production' # You should be in production.
 URL='https://example.com' # Your backend URL.
-ADMIN_HEADER='Bearer SECURE_RANDOM_STRING' # Allows to access /admin/* routes.
+ADMIN_HEADER='Bearer SECURE_RANDOM_STRING' # Required to access /admin/* routes.
 JWT_ACCESS_SECRET='ANOTHER_SECURE_RANDOM_STRING' # Used to encrypt access tokens.
 JWT_REFRESH_SECRET='ANOTHER_ANOTHER_SECURE_RANDOM_STRING' # Used to encrypt refresh tokens.
 JWT_REFRESH_PEPPER='ANOTHER_ANOTHER_ANOTHER_SECURE_RANDOM_STRING' # Used to encrypt refresh tokens.

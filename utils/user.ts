@@ -2,7 +2,7 @@ import { AppError, Session, User } from '~/app'
 import type { H3Event } from 'nitro/h3'
 
 export const useUser = async (event: H3Event) => {
-  const session = await Session.fromAuthorizationHeader(event)
+  const session = await Session.readAndVerifyFromAuthorizationHeader(event)
   const user = await User.findInDatabase({ id: session.userId })
   if (!user) {
     throw new UserNotFoundError()

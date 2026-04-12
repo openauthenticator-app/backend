@@ -64,7 +64,7 @@ export class Session {
     }
   }
 
-  static async fromAuthorizationHeader(event: H3Event) {
+  static async readAndVerifyFromAuthorizationHeader(event: H3Event) {
     const auth = event.req.headers.get('Authorization')
     assert(!!auth, new MissingAuthorizationHeaderError())
 
@@ -74,10 +74,14 @@ export class Session {
       throw new MalformedAuthorizationHeaderError()
     }
 
-    return await Session.fromToken(token, 'access')
+    const session = await Session.decodeVerifiedToken(token, 'access')
+    if (backendConfig.authentication.statelessAccessTokens) {
+      await session.assertActive(event.context.appClientId)
+    }
+    return session
   }
 
-  static async fromToken(token: string, kind?: TokenKind) {
+  static async decodeVerifiedToken(token: string, kind?: TokenKind) {
     let payload
     try {
       const secret = new TextEncoder()
@@ -116,6 +120,22 @@ export class Session {
     return await Session.initiate(this.userId, appClientId)
   }
 
+  async assertActive(appClientId?: string) {
+    const db = useDatabaseWithMetadata()
+    const dbSession = (await db
+      .prepare('SELECT appClientId, expiration FROM sessions WHERE sessionId = ? AND userId = ? LIMIT 1')
+      .bind(this.id, this.userId)
+      .get()) as DbSessionWithExpiration | undefined
+
+    if (!dbSession || dbSession.expiration < Date.now()) {
+      throw new InvalidSessionError()
+    }
+
+    if (appClientId && dbSession.appClientId !== appClientId) {
+      throw new InvalidAppClientIdError()
+    }
+  }
+
   async revoke(refreshToken: string, appClientId?: string) {
     const tokenHash = sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper)
     const db = useDatabaseWithMetadata()
@@ -149,6 +169,11 @@ interface DbSession {
   userId: string
   appClientId: string
   tokenHash: string
+}
+
+interface DbSessionWithExpiration {
+  appClientId: string
+  expiration: number
 }
 
 class MissingAuthorizationHeaderError extends AppError {
