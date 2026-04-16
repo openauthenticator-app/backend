@@ -1,4 +1,4 @@
-import pkg from '~/package.json' assert { type: 'json' }
+import pkg from '~/package.json' with { type: 'json' }
 import * as arctic from 'arctic'
 import { OAuthProvider } from '~/app/auth/providers/provider'
 import { fetch } from 'nitro'

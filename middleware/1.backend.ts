@@ -1,4 +1,4 @@
-import pkg from '~/package.json' assert { type: 'json' }
+import pkg from '~/package.json' with { type: 'json' }
 import { defineHandler, type H3Event } from 'nitro/h3'
 
 const protectedPaths = [
