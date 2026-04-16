@@ -9,6 +9,7 @@ export default defineTask({
   async run() {
     await TotpBucket.pruneInactiveAccounts()
     await Session.pruneExpired()
+    await TotpBucket.pruneDeletedTotps()
     return SuccessObject.fromData().toResponse()
   },
 })

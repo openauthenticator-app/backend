@@ -158,7 +158,7 @@ export class User {
     return success
   }
 
-  toJson() {
+  public toJson() {
     return {
       id: this.id,
       contributorPlan: this.contributorPlan,

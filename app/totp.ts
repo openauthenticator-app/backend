@@ -12,12 +12,12 @@ export type UUID = `${string}-${string}-${string}-${string}-${string}`
 
 export class TotpBucket {
   private readonly storage: Storage<EncryptedTotp>
-  private readonly deletedStorage: Storage<DeletedTotp>
+  private readonly deletedStorage: Storage<TotpTombstone>
   private readonly limit: number | undefined
 
   private constructor(
     storage: Storage<EncryptedTotp>,
-    deletedStorage: Storage<DeletedTotp>,
+    deletedStorage: Storage<TotpTombstone>,
     limit?: number,
   ) {
     this.storage = storage
@@ -26,14 +26,14 @@ export class TotpBucket {
   }
 
   static of(user: User) {
-    return new TotpBucket(useStorage<EncryptedTotp>(`totps/${user.id}/totps`), useStorage<DeletedTotp>(`totps/${user.id}/deleted`), user.totpsLimit)
+    return new TotpBucket(useStorage<EncryptedTotp>(`totps/${user.id}/totps`), useStorage<TotpTombstone>(`totps/${user.id}/deleted`), user.totpsLimit)
   }
 
   static async pruneDeletedTotps(days?: number) {
     const storage = useStorage('totps')
     const users = await storage.getKeys()
     for (const user of users) {
-      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<DeletedTotp>(`totps/${user}/deleted`))
+      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<TotpTombstone>(`totps/${user}/deleted`))
       await bucket.prune(days)
     }
   }
@@ -50,7 +50,7 @@ export class TotpBucket {
       if (sessions.length > 0) {
         continue
       }
-      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${id}/totps`), useStorage<DeletedTotp>(`totps/${id}/deleted`))
+      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${id}/totps`), useStorage<TotpTombstone>(`totps/${id}/deleted`))
       const keys = await bucket.storage.getKeys()
       if (keys.length > 0) {
         continue
@@ -88,9 +88,9 @@ export class TotpBucket {
     await this.deletedStorage.removeItem(uuid)
   }
 
-  public async delete(uuid: UUID) {
+  public async delete(uuid: UUID, deletedAt?: number) {
     await this.storage.removeItem(uuid)
-    await this.deletedStorage.setItem(uuid, { timestamp: Date.now() })
+    await this.deletedStorage.setItem(uuid, { deletedAt: deletedAt ?? Date.now() })
   }
 
   public async getAll() {
@@ -111,7 +111,7 @@ export class TotpBucket {
     await this.storage.setItems(this.recordToStorageObjects(record))
     const deletedKeys = existingKeys.filter(key => !keysToSet.includes(key))
     await Promise.all(deletedKeys.map(key => this.storage.removeItem(key)))
-    await this.deletedStorage.setItems(this.keysToDeletedObjects(deletedKeys))
+    await this.deletedStorage.setItems(this.keysToTombstonesStorageObjects(deletedKeys))
     await Promise.all(keysToSet.map(key => this.deletedStorage.removeItem(key)))
   }
 
@@ -122,12 +122,16 @@ export class TotpBucket {
       await this.deletedStorage.clear()
     }
     else {
-      await this.deletedStorage.setItems(this.keysToDeletedObjects(existingKeys))
+      await this.deletedStorage.setItems(this.keysToTombstonesStorageObjects(existingKeys))
     }
   }
 
-  public async getDeleted(): Promise<Record<UUID, DeletedTotp>> {
-    const result: Record<UUID, DeletedTotp> = {}
+  public async getTombstone(uuid: UUID) {
+    return this.deletedStorage.get(uuid)
+  }
+
+  public async getTombstones(): Promise<Record<UUID, TotpTombstone>> {
+    const result: Record<UUID, TotpTombstone> = {}
     const uuids = await this.deletedStorage.getKeys()
     for (const uuid of uuids) {
       result[uuid as UUID] = (await this.deletedStorage.getItem(uuid))!
@@ -138,21 +142,17 @@ export class TotpBucket {
   private async prune(days?: number) {
     const now = Date.now()
     const deletedKeys = await this.deletedStorage.getKeys()
-    if (!days) {
-      await this.deletedStorage.clear()
-      return
-    }
 
     for (const key of deletedKeys) {
       const deleted = (await this.deletedStorage.getItem(key))!
-      if (now - deleted.timestamp > days * 24 * 60 * 60 * 1000) {
+      if (now - deleted.deletedAt > (days ?? 365) * 24 * 60 * 60 * 1000) {
         await this.deletedStorage.removeItem(key)
       }
     }
   }
 
-  private keysToDeletedObjects(keys: string[]) {
-    return keys.map(key => ({ key, value: { timestamp: Date.now() } }))
+  private keysToTombstonesStorageObjects(keys: string[]): StorageObject<string, TotpTombstone>[] {
+    return keys.map(key => ({ key, value: { deletedAt: Date.now() } }))
   }
 
   private recordToStorageObjects(record: Record<UUID, EncryptedTotp>): StorageObject<string, EncryptedTotp>[] {
@@ -178,44 +178,44 @@ export class TotpBucket {
 
 export type Algorithm = 'SHA1' | 'SHA256' | 'SHA512'
 
-export interface DeletedTotp {
-  timestamp: number
+export interface TotpTombstone {
+  deletedAt: number
 }
 
-export class EncryptedTotp {
-  public readonly algorithm?: Algorithm
-  public readonly digits?: number
-  public readonly validity?: number
-  public readonly encryptionSalt: Uint8Array
-  public readonly secret: Uint8Array
-  public readonly label: Uint8Array
-  public readonly issuer: Uint8Array
-  public readonly imageUrl?: Uint8Array
-  public readonly updatedAt: number
+export interface EncryptedTotp {
+  algorithm?: Algorithm
+  digits?: number
+  validity?: number
+  encryptionSalt: Uint8Array
+  secret: Uint8Array
+  label: Uint8Array
+  issuer: Uint8Array
+  imageUrl?: Uint8Array
+  updatedAt: number
+}
 
-  private constructor(
-    options: {
-      algorithm?: Algorithm
-      digits?: number
-      validity?: number
-      encryptionSalt: Uint8Array
-      secret: Uint8Array
-      label: Uint8Array
-      issuer: Uint8Array
-      imageUrl?: Uint8Array
-      updatedAt: number
-    },
-  ) {
-    this.algorithm = options.algorithm
-    this.digits = options.digits
-    this.validity = options.validity
-    this.encryptionSalt = options.encryptionSalt
-    this.secret = options.secret
-    this.label = options.label
-    this.issuer = options.issuer
-    this.imageUrl = options.imageUrl
-    this.updatedAt = options.updatedAt
+export const areEncryptedTotpsEqual = (a: EncryptedTotp, b: EncryptedTotp): boolean => {
+  const areUint8ArrayEqual = (a: Uint8Array | undefined, b: Uint8Array | undefined): boolean => {
+    if (typeof a === 'undefined') {
+      return typeof b === 'undefined'
+    }
+    if (typeof b === 'undefined') {
+      return false
+    }
+    if (a.length !== b.length) {
+      return false
+    }
+    return a.every((value, index) => value === b[index])
   }
+  return a.algorithm === b.algorithm
+    && a.digits === b.digits
+    && a.validity === b.validity
+    && areUint8ArrayEqual(a.encryptionSalt, b.encryptionSalt)
+    && areUint8ArrayEqual(a.secret, b.secret)
+    && areUint8ArrayEqual(a.label, b.label)
+    && areUint8ArrayEqual(a.issuer, b.issuer)
+    && areUint8ArrayEqual(a.imageUrl, b.imageUrl)
+    && a.updatedAt === b.updatedAt
 }
 
 class TooManyTotpsError extends AppError {

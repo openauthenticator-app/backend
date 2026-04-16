@@ -1,4 +1,4 @@
-import { AppError, EncryptedTotp, TotpBucket, type UserEvent, type UUID } from '~/app'
+import { AppError, areEncryptedTotpsEqual, type EncryptedTotp, TotpBucket, type UserEvent, type UUID } from '~/app'
 import { defineHandler, type H3Event, HTTPError, readValidatedBody } from 'nitro/h3'
 
 const validateBody = (body: unknown) => {
@@ -48,8 +48,7 @@ export default defineHandler({
           if (!operation || typeof operation.payload !== 'object') {
             throw new InvalidOperationPayloadError()
           }
-          const uuids = Object.keys(operation.payload as object)
-          for (const totpUuid of uuids) {
+          for (const [totpUuid, totp] of Object.entries(operation.payload as Record<string, unknown>)) {
             try {
               if (!isValidUUID(totpUuid)) {
                 results.push({
@@ -60,8 +59,6 @@ export default defineHandler({
                 })
                 continue
               }
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const totp = (operation.payload as Record<string, any>)[totpUuid]
               if (!isEncryptedTotp(totp)) {
                 results.push({
                   operationUuid,
@@ -82,16 +79,26 @@ export default defineHandler({
                 continue
               }
               const existing = await bucket.get(totpUuid as UUID)
-              if (existing && existing.updatedAt > totp.updatedAt) {
+              if (existing && existing.updatedAt > (totp as EncryptedTotp).updatedAt) {
                 results.push({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidUpdateTimestamp',
-                  errorDetail: 'Encrypted TOTP is older than existing one.',
+                  errorDetail: 'Encrypted TOTP is older than the currently stored one.',
                 })
                 continue
               }
-              if (existing !== totp) {
+              const tombstone = await bucket.getTombstone(totpUuid as UUID)
+              if (tombstone && tombstone.deletedAt >= (totp as EncryptedTotp).updatedAt) {
+                results.push({
+                  operationUuid,
+                  totpUuid,
+                  errorCode: 'deletedTotp',
+                  errorDetail: 'A TOTP with the same UUID has been deleted more recently.',
+                })
+                continue
+              }
+              if (!existing || !areEncryptedTotpsEqual(existing, (totp as EncryptedTotp))) {
                 await bucket.set(totpUuid as UUID, totp as EncryptedTotp)
               }
               results.push({
@@ -113,10 +120,10 @@ export default defineHandler({
         }
           break
         case 'delete': {
-          if (!Array.isArray(operation.payload)) {
+          if (!operation.payload || typeof operation.payload !== 'object' || Array.isArray(operation.payload)) {
             throw new InvalidOperationPayloadError()
           }
-          for (const totpUuid of operation.payload) {
+          for (const [totpUuid, deletedAt] of Object.entries(operation.payload as Record<string, unknown>)) {
             try {
               if (!isValidUUID(totpUuid)) {
                 results.push({
@@ -124,6 +131,15 @@ export default defineHandler({
                   totpUuid,
                   errorCode: 'invalidUuid',
                   errorDetail: 'Invalid UUID.',
+                })
+                continue
+              }
+              if (typeof deletedAt !== 'number') {
+                results.push({
+                  operationUuid,
+                  totpUuid,
+                  errorCode: 'invalidDeleteTimestamp',
+                  errorDetail: 'Invalid delete timestamp : must be a number.',
                 })
                 continue
               }
@@ -137,7 +153,20 @@ export default defineHandler({
                 })
                 continue
               }
-              await bucket.delete(totpUuid)
+              const active = await bucket.get(totpUuid as UUID)
+              if (active && active.updatedAt > deletedAt) {
+                results.push({
+                  operationUuid,
+                  totpUuid,
+                  errorCode: 'invalidDeleteTimestamp',
+                  errorDetail: 'Currently stored TOTP is newer than the one you are trying to delete.',
+                })
+                continue
+              }
+              const tombstone = await bucket.getTombstone(totpUuid as UUID)
+              if (!tombstone || tombstone.deletedAt < deletedAt) {
+                await bucket.delete(totpUuid as UUID, deletedAt)
+              }
               results.push({
                 operationUuid,
                 totpUuid,
@@ -175,22 +204,25 @@ function compactOperations(operations: PushOperation[]): PushOperation[] {
 
   const processed = new Set<string>()
   const outReversed: PushOperation[] = []
+  const compact = <T>(payload: Record<string, T>) => {
+    const newPayload: Record<string, T> = {}
+
+    for (const [uuid, value] of Object.entries(payload)) {
+      if (!processed.has(uuid)) {
+        processed.add(uuid)
+        newPayload[uuid] = value
+      }
+    }
+
+    return newPayload
+  }
 
   for (let i = operations.length - 1; i >= 0; i--) {
     const operation = operations[i]!
     switch (operation.kind) {
       case 'set':
         {
-          const payload = operation.payload as Record<string, unknown>
-          const newPayload: Record<string, unknown> = {}
-
-          for (const [uuid, value] of Object.entries(payload)) {
-            if (!processed.has(uuid)) {
-              processed.add(uuid)
-              newPayload[uuid] = value
-            }
-          }
-
+          const newPayload = compact(operation.payload as Record<string, unknown>)
           if (Object.keys(newPayload).length > 0) {
             outReversed.push({ ...operation!, payload: newPayload })
           }
@@ -198,17 +230,8 @@ function compactOperations(operations: PushOperation[]): PushOperation[] {
         break
       case 'delete':
         {
-          const payload = operation.payload as string[]
-          const newPayload: string[] = []
-
-          for (const uuid of payload) {
-            if (!processed.has(uuid)) {
-              processed.add(uuid)
-              newPayload.push(uuid)
-            }
-          }
-
-          if (newPayload.length > 0) {
+          const newPayload = compact(operation.payload as Record<string, number>)
+          if (Object.keys(newPayload).length > 0) {
             outReversed.push({ ...operation, payload: newPayload })
           }
         }
@@ -226,7 +249,7 @@ interface PushOperationResult {
   errorDetail: string | null
 }
 
-type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxCountExceeded' | 'genericError'
+type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxCountExceeded' | 'deletedTotp' | 'invalidDeleteTimestamp' | 'genericError'
 
 class InvalidOperationPayloadError extends AppError {
   constructor() {
