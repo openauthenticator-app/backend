@@ -152,5 +152,5 @@ If you want to support Open Authenticator financially, you can use :
 
 ## License
 
-Open Authenticator is licensed under the
+Open Authenticator Backend is licensed under the
 [GNU General Public License v3.0](https://github.com/openauthenticator-app/backend/blob/main/LICENSE).
