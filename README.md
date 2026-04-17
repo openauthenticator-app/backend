@@ -19,17 +19,20 @@
     ·
     <a href="https://openauthenticator.app/#contribute">Contribute</a>
   </p>
-</div>
 
-![GitHub License](https://img.shields.io/github/license/openauthenticator-app/backend)
-![GitHub top language](https://img.shields.io/github/languages/top/openauthenticator-app/backend)
-![GitHub Repo stars](https://img.shields.io/github/stars/openauthenticator-app/backend)
+  <p>
+    <img src="https://img.shields.io/github/license/openauthenticator-app/backend" alt="License">
+    <img src="https://img.shields.io/github/languages/top/openauthenticator-app/backend" alt="Top language">
+    <img src="https://img.shields.io/github/stars/openauthenticator-app/backend" alt="GitHub stars">
+  </p>
+</div>
 
 ## About the app and this repository
 
 [Open Authenticator](https://github.com/openauthenticator-app/openauthenticator) is a free, open-source and cross-platform TOTP manager. This repository contains the source code of its backend, allowing you to have access to your TOTPs on all your devices.
 
-_If you like this project, consider starring it on GitHub !_
+> [!TIP]
+> If you like this project, consider starring it on GitHub !
 
 ## Self-hosting instructions
 
@@ -40,8 +43,8 @@ Open Authenticator Backend is powered by [Nitro](https://nitro.build/). You will
 * A **Node.js environment**. Either a server or a serverless environment (eg. Cloudflare, Vercel, ...).
 * A **database**. The connector should be compatible with [DB0](https://db0.unjs.io) (see all available connectors [here](https://db0.unjs.io/connectors)). This is where all users' information will be stored.
 * A **storage**. The connector should be compatible with [unstorage](https://unstorage.unjs.io) (see all available drivers [here](https://unstorage.unjs.io/drivers)). This is where all TOTPs will be stored.
-* An **email account**, for sending magic links.
-* Optionally, a key-value storage provider, for storing rate limiting related data.
+* _Optionally_, an **email account**, for sending magic links.
+* _Optionally_, a key-value storage provider, for storing rate limiting related data.
 
 ### Installation
 
@@ -54,7 +57,7 @@ npm install
 npm run build
 ```
 
-To start it :
+And to start it :
 
 ```sh
 npm run start
@@ -128,19 +131,26 @@ To (re)create the default tables, you'll have to head to `/admin/reset` with you
 
 To use your own backend in the app, you'll have to go to the settings, and then choose _Change backend URL_. Put your own backend URL here, et voilà !
 
+## Contributing
+
+Contributions are more than welcome. For setup details, contribution rules and PR expectations, read
+[CONTRIBUTING.md](https://github.com/openauthenticator-app/backend/blob/main/CONTRIBUTING.md).
+
+You can also help by :
+
+- reporting bugs or suggesting features in the
+  [issue tracker](https://github.com/openauthenticator-app/backend/issues) ;
+- submitting fixes for documentation, UI text or code.
+
+## Support the project
+
+If you want to support Open Authenticator financially, you can use :
+
+- [Ko-fi](https://ko-fi.com/Skyost)
+- [PayPal](https://paypal.me/Skyost)
+- [GitHub Sponsors](https://github.com/sponsors/Skyost)
+
 ## License
 
-Open Authenticator Backend is licensed under the [GNU General Public License v3.0](https://choosealicense.com/licenses/gpl-3.0/).
-
-## Contribute
-
-If you like this project, there are a lot of ways for you to contribute to it !
-Please read the [contribution guide](/blob/main/CONTRIBUTING.md) before getting started.
-
-### Report bugs or suggest new features
-
-You can report bugs or suggest new features in the [issue tracker](/issues).
-
-### Donate
-
-You can donate for this project using either [PayPal](http://paypal.me/Skyost), [Ko-Fi](https://ko-fi.com/Skyost) or [Github sponsors](https://github.com/sponsors/Skyost). If you don't want to donate, any [kind message](https://openauthenticator.app/contact) is also appreciated !
+Open Authenticator is licensed under the
+[GNU General Public License v3.0](https://github.com/openauthenticator-app/backend/blob/main/LICENSE).
