@@ -133,8 +133,8 @@ To use your own backend in the app, you'll have to go to the settings, and then 
 
 ## Contributing
 
-Contributions are more than welcome. For setup details, contribution rules and PR expectations, read
-[CONTRIBUTING.md](https://github.com/openauthenticator-app/backend/blob/main/CONTRIBUTING.md).
+Contributions are more than welcome. For setup details, contribution rules and PR expectations, read the
+[guidelines](https://github.com/openauthenticator-app/backend/blob/main/CONTRIBUTING.md).
 
 You can also help by :
 
