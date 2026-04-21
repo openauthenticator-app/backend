@@ -22,7 +22,7 @@ export interface BackendConfig {
     }
   }
   authentication: {
-    statelessAccessTokens?: boolean
+    strategy: 'stateless' | 'hybrid' | 'stateful'
     database: DatabaseConnectionConfig
     tokensTtl: {
       access: StringValue | number
@@ -88,7 +88,7 @@ export default {
     },
   },
   authentication: {
-    statelessAccessTokens: true,
+    strategy: 'hybrid',
     database: {
       connector: 'sqlite',
       options: {
