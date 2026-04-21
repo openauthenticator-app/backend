@@ -55,7 +55,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidUuid',
-                  errorDetail: 'Invalid UUID.',
+                  errorDetails: 'Invalid UUID.',
                 })
                 continue
               }
@@ -64,7 +64,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidTotp',
-                  errorDetail: 'Invalid encrypted TOTP.',
+                  errorDetails: 'Invalid encrypted TOTP.',
                 })
                 continue
               }
@@ -74,7 +74,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'maxCountExceeded',
-                  errorDetail: 'Maximum number of operations exceeded.',
+                  errorDetails: 'Maximum number of operations exceeded.',
                 })
                 continue
               }
@@ -84,7 +84,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidUpdateTimestamp',
-                  errorDetail: 'Encrypted TOTP is older than the currently stored one.',
+                  errorDetails: 'Encrypted TOTP is older than the currently stored one.',
                 })
                 continue
               }
@@ -94,7 +94,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'deletedTotp',
-                  errorDetail: 'A TOTP with the same UUID has been deleted more recently.',
+                  errorDetails: 'A TOTP with the same UUID has been deleted more recently.',
                 })
                 continue
               }
@@ -105,7 +105,7 @@ export default defineHandler({
                 operationUuid,
                 totpUuid,
                 errorCode: null,
-                errorDetail: null,
+                errorDetails: null,
               })
             }
             catch (error) {
@@ -113,7 +113,7 @@ export default defineHandler({
                 operationUuid,
                 totpUuid,
                 errorCode: 'genericError',
-                errorDetail: errorToDetails(error),
+                errorDetails: errorToDetails(error),
               })
             }
           }
@@ -130,7 +130,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidUuid',
-                  errorDetail: 'Invalid UUID.',
+                  errorDetails: 'Invalid UUID.',
                 })
                 continue
               }
@@ -139,7 +139,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidDeleteTimestamp',
-                  errorDetail: 'Invalid delete timestamp : must be a number.',
+                  errorDetails: 'Invalid delete timestamp : must be a number.',
                 })
                 continue
               }
@@ -149,7 +149,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'maxCountExceeded',
-                  errorDetail: 'Maximum number of operations exceeded.',
+                  errorDetails: 'Maximum number of operations exceeded.',
                 })
                 continue
               }
@@ -159,7 +159,7 @@ export default defineHandler({
                   operationUuid,
                   totpUuid,
                   errorCode: 'invalidDeleteTimestamp',
-                  errorDetail: 'Currently stored TOTP is newer than the one you are trying to delete.',
+                  errorDetails: 'Currently stored TOTP is newer than the one you are trying to delete.',
                 })
                 continue
               }
@@ -171,7 +171,7 @@ export default defineHandler({
                 operationUuid,
                 totpUuid,
                 errorCode: null,
-                errorDetail: null,
+                errorDetails: null,
               })
             }
             catch (error) {
@@ -179,7 +179,7 @@ export default defineHandler({
                 operationUuid,
                 totpUuid,
                 errorCode: 'genericError',
-                errorDetail: errorToDetails(error),
+                errorDetails: errorToDetails(error),
               })
             }
           }
@@ -246,7 +246,7 @@ interface PushOperationResult {
   operationUuid: string
   totpUuid: string
   errorCode: PushOperationResultError | null
-  errorDetail: string | null
+  errorDetails: string | null
 }
 
 type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxCountExceeded' | 'deletedTotp' | 'invalidDeleteTimestamp' | 'genericError'
