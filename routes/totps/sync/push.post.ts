@@ -31,12 +31,17 @@ export default defineHandler({
     const bucket = TotpBucket.of(userEvent.context.user)
     const operations = await readValidatedBody<H3Event, PushOperation[]>(event, validateBody)
     const results: PushOperationResult[] = []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const errorToDetails = (error: any) => {
+    const errorToCode = (error: unknown) => {
+      if (error instanceof AppError) {
+        return AppError.getErrorCodeFromClass(error.constructor.name)
+      }
+      return 'genericError'
+    }
+    const errorToDetails = (error: unknown) => {
       if (error instanceof HTTPError) {
         return error.message
       }
-      return error instanceof Error ? error.message : error.toString()
+      return error instanceof Error ? error.message : `${error}`
     }
 
     const compactedOperations = compactOperations(operations)
@@ -112,7 +117,7 @@ export default defineHandler({
               results.push({
                 operationUuid,
                 totpUuid,
-                errorCode: 'genericError',
+                errorCode: errorToCode(error),
                 errorDetails: errorToDetails(error),
               })
             }
@@ -178,7 +183,7 @@ export default defineHandler({
               results.push({
                 operationUuid,
                 totpUuid,
-                errorCode: 'genericError',
+                errorCode: errorToCode(error),
                 errorDetails: errorToDetails(error),
               })
             }
@@ -245,7 +250,7 @@ function compactOperations(operations: PushOperation[]): PushOperation[] {
 interface PushOperationResult {
   operationUuid: string
   totpUuid: string
-  errorCode: PushOperationResultError | null
+  errorCode: PushOperationResultError | string | null
   errorDetails: string | null
 }
 

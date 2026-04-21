@@ -143,7 +143,7 @@ class TransferHandler extends RevenueCatEventHandler<WebhookTransfer> {
 
 class UnknownEventHandler extends RevenueCatEventHandler<Webhook['event']> {}
 
-class RevenueCatWebhookEventStore {
+export class RevenueCatWebhookEventStore {
   static async pruneProcessedEvents(days?: number) {
     const cutoff = Date.now() - (days ?? 365) * 24 * 60 * 60 * 1000
     const result = await useDatabaseWithMetadata()

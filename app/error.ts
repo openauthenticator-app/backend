@@ -14,11 +14,11 @@ export class AppError extends HTTPError {
         status: statusCode,
       },
     )
-    this.errorCode = typeof errorCode === 'string' ? errorCode : AppError.getErrorCodeFromClass(errorCode)
+    this.errorCode = AppError.getErrorCodeFromClass(errorCode)
   }
 
-  public static getErrorCodeFromClass(cls: typeof AppError): string {
-    let name = cls.name
+  public static getErrorCodeFromClass(cls: string | typeof AppError): string {
+    let name = typeof cls === 'string' ? cls : cls.name
     name = (name[0] ?? '').toLowerCase() + name.substring(1)
     if (name.endsWith('Error')) {
       return name.substring(0, name.length - 'Error'.length)
