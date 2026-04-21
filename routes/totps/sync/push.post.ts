@@ -78,7 +78,7 @@ export default defineHandler({
                 results.push({
                   operationUuid,
                   totpUuid,
-                  errorCode: 'maxCountExceeded',
+                  errorCode: 'maxOperationsCountExceeded',
                   errorDetails: 'Maximum number of operations exceeded.',
                 })
                 continue
@@ -153,7 +153,7 @@ export default defineHandler({
                 results.push({
                   operationUuid,
                   totpUuid,
-                  errorCode: 'maxCountExceeded',
+                  errorCode: 'maxOperationsCountExceeded',
                   errorDetails: 'Maximum number of operations exceeded.',
                 })
                 continue
@@ -254,7 +254,7 @@ interface PushOperationResult {
   errorDetails: string | null
 }
 
-type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxCountExceeded' | 'deletedTotp' | 'invalidDeleteTimestamp' | 'genericError'
+type PushOperationResultError = 'invalidUuid' | 'invalidTotp' | 'invalidUpdateTimestamp' | 'maxOperationsCountExceeded' | 'deletedTotp' | 'invalidDeleteTimestamp' | 'genericError'
 
 class InvalidOperationPayloadError extends AppError {
   constructor() {
