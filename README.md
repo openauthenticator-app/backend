@@ -8,7 +8,7 @@
   <p>
     The backend of Open Authenticator.
     <br />
-    <a href=#self-hosting-instructions"><strong>Installation »</strong></a>
+    <a href=#installation"><strong>Installation »</strong></a>
     <br />
     <br />
     <a href="https://openauthenticator.app">Website</a>
@@ -156,7 +156,92 @@ Please refer to [the default config](https://github.com/openauthenticator-app/ba
 
 ### Populate, reset and prune data
 
-To (re)create the default tables, you'll have to head to `/admin/reset` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To prune unnecessary data, go to `/admin/prune`.
+To (re)create the default tables, send a `POST` request to `/admin/reset` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To prune unnecessary data, send a `POST` request to `/admin/prune`. You can also prune only one category with `/admin/prune/accounts`, `/admin/prune/sessions`, or `/admin/prune/totps`.
+
+## Behind the scenes
+
+### Request requirements
+
+Most application routes require two headers :
+
+- `App-Version`, which must satisfy `appVersionRange`.
+- `App-Client-Id`, a stable identifier for the current app installation/client.
+
+These headers are required for `/auth/*`, `/totps/*`, `/user/*`, and `/ping`, except OAuth and email callback/redirect endpoints. Admin routes additionally require the configured `adminHeader` as the `Authorization` header.
+
+### Routes
+
+| Route                               | Method   | Purpose                                                                                                                                                                      | Authentication                                                   |
+|-------------------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
+| `/ping`                             | `GET`    | Health/version-compatible ping endpoint.                                                                                                                                     | App headers                                                      |
+| `/auth/provider/:provider/redirect` | `GET`    | Starts an OAuth or email login/link flow. Supported providers are `google`, `apple`, `microsoft`, `github`, and `email` depending on what configured in `backend.config.ts`. | Public, provider-specific                                        |
+| `/auth/provider/:provider/callback` | `GET`    | Handles OAuth provider redirects and returns an app deep link.                                                                                                               | Public, protected by OAuth `state`/PKCE cookies where applicable |
+| `/auth/provider/:provider/callback` | `POST`   | Handles Apple and email callbacks that post data instead of using a browser redirect.                                                                                        | Provider-specific                                                |
+| `/auth/provider/:provider/login`    | `POST`   | Exchanges a provider authorization code for backend `accessToken` and `refreshToken`.                                                                                        | App headers                                                      |
+| `/auth/provider/:provider/link`     | `POST`   | Links a provider identity to the current user.                                                                                                                               | Bearer access token                                              |
+| `/auth/provider/:provider/unlink`   | `POST`   | Unlinks a provider identity from the current user.                                                                                                                           | Bearer access token                                              |
+| `/auth/provider/:provider/cancel`   | `POST`   | Cancels a pending email login request.                                                                                                                                       | Email provider only                                              |
+| `/auth/refresh`                     | `POST`   | Exchanges a refresh token for a new token pair.                                                                                                                              | Refresh token + app headers                                      |
+| `/auth/logout`                      | `POST`   | Revokes the refresh token in stateful mode. In stateless mode, validates the token but cannot revoke it server-side.                                                         | Refresh token + app headers                                      |
+| `/user`                             | `GET`    | Returns the current user profile.                                                                                                                                            | Bearer access token                                              |
+| `/user`                             | `DELETE` | Deletes the current user, sessions, and TOTP data.                                                                                                                           | Bearer access token                                              |
+| `/totps`                            | `GET`    | Returns all encrypted TOTPs for the current user.                                                                                                                            | Bearer access token                                              |
+| `/totps`                            | `POST`   | Replaces/sets encrypted TOTPs in bulk.                                                                                                                                       | Bearer access token                                              |
+| `/totps`                            | `DELETE` | Clears all encrypted TOTPs for the current user.                                                                                                                             | Bearer access token                                              |
+| `/totps/:uuid`                      | `POST`   | Sets one encrypted TOTP.                                                                                                                                                     | Bearer access token                                              |
+| `/totps/:uuid`                      | `DELETE` | Deletes one encrypted TOTP and stores a tombstone for sync.                                                                                                                  | Bearer access token                                              |
+| `/totps/sync/pull`                  | `POST`   | Returns inserts, updates, and deletes newer than the client-known timestamps.                                                                                                | Bearer access token                                              |
+| `/totps/sync/push`                  | `POST`   | Applies compacted client sync operations with timestamp conflict checks.                                                                                                     | Bearer access token                                              |
+| `/admin/reset`                      | `POST`   | Drops and recreates database tables and indexes.                                                                                                                             | `adminHeader`                                                    |
+| `/admin/prune`                      | `POST`   | Prunes inactive accounts, expired sessions, and deleted TOTP tombstones.                                                                                                     | `adminHeader`                                                    |
+| `/admin/prune/accounts`             | `POST`   | Prunes inactive non-contributor accounts. Accepts an optional `days` value in the JSON body.                                                                                 | `adminHeader`                                                    |
+| `/admin/prune/sessions`             | `POST`   | Prunes expired sessions.                                                                                                                                                     | `adminHeader`                                                    |
+| `/admin/prune/totps`                | `POST`   | Prunes deleted TOTP tombstones. Accepts an optional `days` value in the JSON body.                                                                                           | `adminHeader`                                                    |
+| `/webhooks/revenuecat`              | `POST`   | Handles RevenueCat subscription events.                                                                                                                                      | RevenueCat `Authorization` header                                |
+
+### Authentication flow
+
+Authentication is provider-based. OAuth providers use `state` cookies, and providers that support PKCE store a temporary code verifier cookie during the redirect flow. The provider callback returns an app deep link containing a provider authorization code. The app then calls `/auth/provider/:provider/login`, and the backend validates that authorization code before issuing backend tokens.
+
+The email provider sends a verification code and magic link. A valid email callback creates a short-lived backend authorization code, which is then exchanged through the same `/auth/provider/email/login` endpoint.
+
+Provider linking uses the same provider validation path as login, but requires an existing bearer access token. A user cannot unlink the last remaining provider from their account.
+
+### Sessions and tokens
+
+The backend issues two JWTs :
+
+- An access token, sent as `Authorization: Bearer <token>` for protected routes.
+- A refresh token, sent in the JSON body to `/auth/refresh` and `/auth/logout`.
+
+Both tokens include the user id as `sub`, a session id as `sid`, and the app client id as `aci`. The `aci` claim binds a token to the `App-Client-Id` header.
+
+When `authentication.statelessAccessTokens` is `true`, the backend does not write login/refresh sessions to the `sessions` table. Access and refresh tokens are accepted based on JWT signature, expiration, and app-client binding. This mode avoids session database I/O, but logout cannot revoke already issued tokens server-side; invalidation relies on token expiration or JWT secret rotation.
+
+When `authentication.statelessAccessTokens` is `false`, refresh tokens are stateful. The backend stores only a peppered hash of the refresh token in the `sessions` table, together with the user id, app client id, and expiration timestamp. Refreshing deletes the previous session row and creates a new one. Logout deletes the matching session row. Access tokens are also checked against the `sessions` table on protected requests, so logout and refresh invalidation take effect immediately for access tokens.
+
+### Rate limits
+
+Rate limiting is controlled by `rateLimiter.enable` and uses the configured `rateLimiter.storage` through Unstorage. Keys are scoped by client IP and route path by default. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`; limited responses include `Retry-After` and return `429`.
+
+The default middleware uses a sliding-window algorithm. Most route-specific limits use the default one-minute window. Notable custom limits include :
+
+- `/auth/provider/:provider/redirect`: 3 requests per 15 minutes for email, keyed by IP, path, and normalized email; 20 requests per 15 minutes for other providers.
+- `/auth/provider/:provider/login`: 3 requests for email, 10 for other providers.
+- `/auth/refresh`: 5 requests.
+- `/totps` bulk operations: 5 requests.
+- `/user` delete: 1 request.
+
+### RevenueCat webhook
+
+`/webhooks/revenuecat` verifies the incoming `Authorization` header against `revenueCat.authorizationHeader` using a timing-safe comparison. If subscriber attributes include a `backend` value, it must match the configured backend hostname.
+
+Handled RevenueCat events update the local `contributorPlan` flag :
+
+- `INITIAL_PURCHASE`, `RENEWAL`, and `TEMPORARY_ENTITLEMENT_GRANT` grant contributor access when the event contains `revenueCat.contributorPlanEntitlementId`.
+- `EXPIRATION` removes contributor access for that entitlement.
+- `TRANSFER` removes contributor access from the previous RevenueCat user and grants it to the new one when those users exist locally.
+- Unknown event types are accepted but only logged.
 
 ### Using it in the app
 
