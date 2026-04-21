@@ -11,6 +11,9 @@ export const isEncryptedTotp = (object: unknown) => {
   if ('validity' in object && typeof object.validity !== 'number') {
     return false
   }
+  if (!('updatedAt' in object) || typeof object.updatedAt !== 'number') {
+    return false
+  }
   if (!('encryptionSalt' in object) || !isUint8Array(object.encryptionSalt)) {
     return false
   }
