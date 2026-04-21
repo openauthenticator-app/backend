@@ -8,7 +8,7 @@
   <p>
     The backend of Open Authenticator.
     <br />
-    <a href=#installation"><strong>Installation »</strong></a>
+    <a href="#installation"><strong>Installation »</strong></a>
     <br />
     <br />
     <a href="https://openauthenticator.app">Website</a>
