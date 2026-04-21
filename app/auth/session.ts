@@ -9,11 +9,13 @@ type TokenKind = 'access' | 'refresh'
 
 export class Session {
   private readonly id: string
+  private readonly appClientId: string
   readonly userId: string
 
-  private constructor(id: string, userId: string) {
+  private constructor(id: string, userId: string, appClientId: string) {
     this.id = id
     this.userId = userId
+    this.appClientId = appClientId
   }
 
   static async pruneExpired() {
@@ -27,12 +29,20 @@ export class Session {
   }
 
   static async initiate(userId: string, appClientId: string) {
-    const session = new Session(generateRandomString(), userId)
+    const session = new Session(generateRandomString(), userId, appClientId)
     const accessToken = await session.generateToken('access')
     const refreshToken = await session.generateToken('refresh')
 
     if (!accessToken || !refreshToken) {
       throw new TokensGenerationError()
+    }
+
+    if (backendConfig.authentication.statelessAccessTokens) {
+      return {
+        session,
+        accessToken,
+        refreshToken,
+      }
     }
 
     const expiration = Date.now() + (
@@ -75,7 +85,8 @@ export class Session {
     }
 
     const session = await Session.decodeVerifiedToken(token, 'access')
-    if (backendConfig.authentication.statelessAccessTokens) {
+    session.assertAppClientId(event.context.appClientId, !!backendConfig.authentication.statelessAccessTokens)
+    if (!backendConfig.authentication.statelessAccessTokens) {
       await session.assertActive(event.context.appClientId)
     }
     return session
@@ -96,8 +107,17 @@ export class Session {
       throw new InvalidPayloadError(kind ?? 'access')
     }
 
-    if (payload && typeof payload === 'object' && 'sid' in payload && 'sub' in payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
-      return new Session(payload.sid, payload.sub)
+    if (
+      payload
+      && typeof payload === 'object'
+      && 'sid' in payload
+      && 'sub' in payload
+      && 'aci' in payload
+      && typeof payload.sub === 'string'
+      && typeof payload.sid === 'string'
+      && typeof payload.aci === 'string'
+    ) {
+      return new Session(payload.sid, payload.sub, payload.aci)
     }
 
     throw new InvalidTokenError(kind ?? 'access')
@@ -107,7 +127,7 @@ export class Session {
     const secret = new TextEncoder()
       .encode(tokenKind === 'refresh' ? backendConfig.authentication.jwtSecrets.refresh : backendConfig.authentication.jwtSecrets.access)
 
-    return await new SignJWT({ sid: this.id })
+    return await new SignJWT({ sid: this.id, aci: this.appClientId })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(tokenKind === 'refresh' ? backendConfig.authentication.tokensTtl.refresh : backendConfig.authentication.tokensTtl.access)
@@ -116,7 +136,12 @@ export class Session {
   }
 
   async refresh(refreshToken: string, appClientId: string) {
-    await this.revoke(refreshToken, appClientId)
+    if (backendConfig.authentication.statelessAccessTokens) {
+      this.assertAppClientId(appClientId, true)
+    }
+    else {
+      await this.revoke(refreshToken, appClientId)
+    }
     return await Session.initiate(this.userId, appClientId)
   }
 
@@ -137,6 +162,11 @@ export class Session {
   }
 
   async revoke(refreshToken: string, appClientId?: string) {
+    if (backendConfig.authentication.statelessAccessTokens) {
+      this.assertAppClientId(appClientId, true)
+      return
+    }
+
     const tokenHash = sha256(refreshToken, backendConfig.authentication.jwtSecrets.refreshPepper)
     const db = useDatabaseWithMetadata()
 
@@ -160,6 +190,16 @@ export class Session {
 
     if (!hasExactlyOneChange(deleteResult)) {
       throw new TokenRevocationError()
+    }
+  }
+
+  private assertAppClientId(appClientId?: string, requireTokenBinding: boolean = false) {
+    if (requireTokenBinding && !this.appClientId) {
+      throw new MissingTokenAppClientIdError()
+    }
+
+    if (appClientId && this.appClientId && this.appClientId !== appClientId) {
+      throw new InvalidAppClientIdError()
     }
   }
 }
@@ -227,6 +267,12 @@ class InvalidTokenError extends AppError {
 class InvalidAppClientIdError extends AppError {
   constructor() {
     super('Invalid app client ID.', InvalidAppClientIdError, 400)
+  }
+}
+
+class MissingTokenAppClientIdError extends AppError {
+  constructor() {
+    super('Token is not bound to an app client ID.', MissingTokenAppClientIdError, 400)
   }
 }
 
