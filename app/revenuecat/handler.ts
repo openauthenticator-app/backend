@@ -17,7 +17,7 @@ export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
   }
 
   static handle(httpEvent: H3Event, webhookEvent: Webhook['event']) {
-    if ('subscriber_attributes' in webhookEvent && typeof webhookEvent.subscriber_attributes === 'object') {
+    if ('subscriber_attributes' in webhookEvent && webhookEvent.subscriber_attributes && typeof webhookEvent.subscriber_attributes === 'object') {
       const attributes = webhookEvent.subscriber_attributes as Attributes
       const backend = attributes['backend']
       const targetValue = new URL(backendConfig.url).hostname
