@@ -105,7 +105,7 @@ export class Session {
       if (error instanceof JWTExpired) {
         throw new ExpiredSessionError()
       }
-      throw new InvalidPayloadError(kind)
+      throw new InvalidTokenError(kind)
     }
 
     if (
@@ -124,7 +124,7 @@ export class Session {
       return new Session(payload.sid, payload.sub, payload.aci)
     }
 
-    throw new InvalidTokenError(kind)
+    throw new InvalidPayloadError(kind)
   }
 
   private async generateToken(tokenKind?: TokenKind) {
