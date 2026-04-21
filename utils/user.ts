@@ -1,7 +1,6 @@
-import { AppError, Session, User } from '~/app'
-import type { H3Event } from 'nitro/h3'
+import { AppError, type AppEvent, Session, User } from '~/app'
 
-export const useUser = async (event: H3Event) => {
+export const useUser = async (event: AppEvent) => {
   const session = await Session.readAndVerifyFromAuthorizationHeader(event)
   const user = await User.findInDatabase({ id: session.userId })
   if (!user) {

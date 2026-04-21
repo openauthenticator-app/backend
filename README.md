@@ -156,7 +156,7 @@ Please refer to [the default config](https://github.com/openauthenticator-app/ba
 
 ### Populate, reset and prune data
 
-To (re)create the default tables, send a `POST` request to `/admin/reset` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To prune unnecessary data, send a `POST` request to `/admin/prune`. You can also prune only one category with `/admin/prune/accounts`, `/admin/prune/sessions`, or `/admin/prune/totps`.
+To (re)create the default tables, send a `POST` request to `/admin/reset` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To prune unnecessary data, send a `POST` request to `/admin/prune`. You can also prune only one category with `/admin/prune/accounts`, `/admin/prune/sessions`, `/admin/prune/totps`, or `/admin/prune/revenuecat`.
 
 ## Behind the scenes
 
@@ -193,10 +193,11 @@ These headers are required for `/auth/*`, `/totps/*`, `/user/*`, and `/ping`, ex
 | `/totps/sync/pull`                  | `POST`   | Returns inserts, updates, and deletes newer than the client-known timestamps.                                                                                                | Bearer access token                                              |
 | `/totps/sync/push`                  | `POST`   | Applies compacted client sync operations with timestamp conflict checks.                                                                                                     | Bearer access token                                              |
 | `/admin/reset`                      | `POST`   | Drops and recreates database tables and indexes.                                                                                                                             | `adminHeader`                                                    |
-| `/admin/prune`                      | `POST`   | Prunes inactive accounts, expired sessions, and deleted TOTP tombstones.                                                                                                     | `adminHeader`                                                    |
+| `/admin/prune`                      | `POST`   | Prunes inactive accounts, expired sessions, deleted TOTP tombstones, and processed RevenueCat webhook events.                                                                | `adminHeader`                                                    |
 | `/admin/prune/accounts`             | `POST`   | Prunes inactive non-contributor accounts. Accepts an optional `days` value in the JSON body.                                                                                 | `adminHeader`                                                    |
 | `/admin/prune/sessions`             | `POST`   | Prunes expired sessions.                                                                                                                                                     | `adminHeader`                                                    |
 | `/admin/prune/totps`                | `POST`   | Prunes deleted TOTP tombstones. Accepts an optional `days` value in the JSON body.                                                                                           | `adminHeader`                                                    |
+| `/admin/prune/revenuecat`           | `POST`   | Prunes processed RevenueCat webhook events. Accepts an optional `days` value in the JSON body.                                                                               | `adminHeader`                                                    |
 | `/webhooks/revenuecat`              | `POST`   | Handles RevenueCat subscription events.                                                                                                                                      | RevenueCat `Authorization` header                                |
 
 ### Authentication flow
@@ -242,8 +243,10 @@ Handled RevenueCat events update the local `contributorPlan` flag :
 
 - `INITIAL_PURCHASE`, `RENEWAL`, and `TEMPORARY_ENTITLEMENT_GRANT` grant contributor access when the event contains `revenueCat.contributorPlanEntitlementId`.
 - `EXPIRATION` removes contributor access for that entitlement.
-- `TRANSFER` removes contributor access from the previous RevenueCat user and grants it to the new one when those users exist locally.
+- `TRANSFER` removes contributor access from every previous RevenueCat user and grants it to every new one when those users exist locally.
 - Unknown event types are accepted but only logged.
+
+Processed RevenueCat events are tracked in the `revenueCatWebhookEvents` table, one row per event and per affected user. This makes retries idempotent and prevents an older webhook from overriding a newer subscription state.
 
 ### Using it in the app
 
