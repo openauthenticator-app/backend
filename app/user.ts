@@ -6,7 +6,7 @@ export type OAuthProviderId = `${AuthProviderId}Id`
 
 export class User {
   public readonly id: string
-  private readonly contributorPlan: boolean
+  public readonly contributorPlan: boolean
   public readonly totpsLimit: number
   private readonly providersIds: Partial<Record<ProviderId, string>>
 
