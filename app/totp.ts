@@ -98,10 +98,10 @@ export class TotpBucket {
     return this.storageObjectsToRecord(await this.storage.getItems(uuids))
   }
 
-  public async setAll(record: Record<UUID, EncryptedTotp>) {
+  public async setAll(record: Record<UUID, EncryptedTotp>, bypassLimit: boolean = false) {
     const existingKeys = await this.storage.getKeys()
     const keysToSet = Object.keys(record)
-    if (this.limit) {
+    if (this.limit && !bypassLimit) {
       const intersection = [...existingKeys].filter(keysToSet.includes).length
       const newKeys = keysToSet.length - intersection
       if (existingKeys.length + newKeys > this.limit) {
