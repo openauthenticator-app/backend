@@ -8,11 +8,15 @@ export default defineHandler({
     if (!['apple', 'email'].includes(authProvider.id)) {
       throw new MethodNotAllowedError()
     }
-    if (authProvider.id === 'email') {
-      requireAppVersionHeader(event)
-      requireAppClientId(event)
+    switch (authProvider.id) {
+      case 'email':
+        requireAppVersionHeader(event)
+        requireAppClientId(event)
+        return SuccessObject.fromData(await authProvider.callback(event as AppEvent)).toResponse()
+      case 'apple':
+      default:
+        return redirectIntoApp((await authProvider.callback(event as AppEvent)).toString())
     }
-    return SuccessObject.fromData(await authProvider.callback(event as AppEvent)).toResponse()
   },
 })
 
