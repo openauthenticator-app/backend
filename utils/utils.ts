@@ -1,4 +1,4 @@
-import { HTTPError, redirect } from 'nitro/h3'
+import { HTTPError } from 'nitro/h3'
 import { AppError, type User } from '~/app'
 
 export const assert = (condition: boolean, error?: HTTPError | string): asserts condition => {
@@ -7,12 +7,39 @@ export const assert = (condition: boolean, error?: HTTPError | string): asserts 
   }
 }
 
-export const redirectIntoApp = (url: URL | string): ReturnType<typeof redirect> => {
+export const redirectIntoApp = (url: URL | string): Response => {
   const urlString = url.toString()
   if (urlString.startsWith('openauthenticator://') && process.env.NODE_ENV !== 'production') {
     console.log(`Trying to open ${urlString}...`)
   }
-  return redirect(urlString, 302)
+  const escapedUrl = JSON.stringify(urlString)
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url=${escapedUrl}" />
+  <title>Open Authenticator</title>
+  <script>window.location.href = ${escapedUrl};</script>
+</head>
+<body>
+  <p>
+    Redirecting you to the Open Authenticator app...
+    Please click <a href=${escapedUrl}>here</a> if you're not being redirected.
+  </p>
+</body>
+</html>`
+  return new Response(
+    html,
+    {
+      status: 302,
+      statusText: 'Found',
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+      },
+    },
+  )
 }
 
 export const booleanToNumber = (value: boolean): 0 | 1 => value ? 1 : 0
