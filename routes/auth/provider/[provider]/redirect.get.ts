@@ -21,6 +21,6 @@ export default defineHandler({
     event.res.headers.set('Pragma', 'no-cache')
     event.res.headers.set('Expires', '0')
     const authProvider = useAuthProvider(event)
-    return redirectIntoApp((await authProvider.redirect(event as AppEvent)).toString())
+    return redirectIntoApp(event, (await authProvider.redirect(event as AppEvent)).toString())
   },
 })

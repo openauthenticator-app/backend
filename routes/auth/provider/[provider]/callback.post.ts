@@ -15,7 +15,7 @@ export default defineHandler({
         return SuccessObject.fromData(await authProvider.callback(event as AppEvent)).toResponse()
       case 'apple':
       default:
-        return redirectIntoApp((await authProvider.callback(event as AppEvent)).toString())
+        return redirectIntoApp(event, (await authProvider.callback(event as AppEvent)).toString())
     }
   },
 })

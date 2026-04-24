@@ -1,4 +1,4 @@
-import { HTTPError } from 'nitro/h3'
+import { type H3Event, HTTPError } from 'nitro/h3'
 import { AppError, type User } from '~/app'
 
 export const assert = (condition: boolean, error?: HTTPError | string): asserts condition => {
@@ -7,7 +7,11 @@ export const assert = (condition: boolean, error?: HTTPError | string): asserts 
   }
 }
 
-export const redirectIntoApp = (url: URL | string): Response => {
+export const redirectIntoApp = (event: H3Event, url: URL | string): Response => {
+  const headers = new Headers(event.res.headers)
+  headers.set('Content-Type', 'text/html; charset=utf-8')
+  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+  headers.set('Location', url.toString())
   const urlString = url.toString()
   if (urlString.startsWith('openauthenticator://') && process.env.NODE_ENV !== 'production') {
     console.log(`Trying to open ${urlString}...`)
@@ -34,10 +38,7 @@ export const redirectIntoApp = (url: URL | string): Response => {
     {
       status: 302,
       statusText: 'Found',
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-      },
+      headers,
     },
   )
 }
