@@ -3,5 +3,5 @@ import { defineHandler } from 'nitro/h3'
 
 export default defineHandler(async () => {
   await Session.pruneExpired()
-  return SuccessObject.fromData().toResponse()
+  return SuccessObject.fromData().toResponse(event)
 })

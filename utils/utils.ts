@@ -7,34 +7,22 @@ export const assert = (condition: boolean, error?: HTTPError | string): asserts 
   }
 }
 
-export const redirectIntoApp = (event: H3Event, url: URL | string): Response => {
+export interface LocalizedRedirectionURL {
+  url: URL | string
+  locale?: string
+}
+
+export const sendRedirectResponse = (event: H3Event, url: LocalizedRedirectionURL): Response => {
   const headers = new Headers(event.res.headers)
   headers.set('Content-Type', 'text/html; charset=utf-8')
   headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-  headers.set('Location', url.toString())
-  const urlString = url.toString()
+  headers.set('Location', url.url.toString())
+  const urlString = url.url.toString()
   if (urlString.startsWith('openauthenticator://') && process.env.NODE_ENV !== 'production') {
     console.log(`Trying to open ${urlString}...`)
   }
-  const escapedUrl = JSON.stringify(urlString)
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=${escapedUrl}" />
-  <title>Open Authenticator</title>
-  <script>window.location.href = ${escapedUrl};</script>
-</head>
-<body>
-  <p>
-    Redirecting you to the Open Authenticator app...
-    Please click <a href=${escapedUrl}>here</a> if you're not being redirected.
-  </p>
-</body>
-</html>`
   return new Response(
-    html,
+    backendConfig.redirectionPageBuilder(url.url, url.locale),
     {
       status: 302,
       statusText: 'Found',
@@ -66,7 +54,9 @@ export class ReturnObject {
     this.data = options.data ?? {}
   }
 
-  public toResponse(): Response {
+  public toResponse(event?: H3Event): Response {
+    const headers = new Headers(event?.res.headers)
+    headers.set('Content-Type', 'application/json')
     return new Response(
       JSON.stringify({
         success: this.success,
@@ -74,9 +64,7 @@ export class ReturnObject {
       }),
       {
         status: this.status,
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       },
     )
   }

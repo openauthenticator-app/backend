@@ -14,6 +14,6 @@ export default defineHandler({
       )
     }
     await (authProvider as EmailProvider).cancel(event as AppEvent)
-    return SuccessObject.fromData().toResponse()
+    return SuccessObject.fromData().toResponse(event)
   },
 })

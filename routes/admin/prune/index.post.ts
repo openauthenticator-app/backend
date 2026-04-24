@@ -7,5 +7,5 @@ export default defineHandler(async (event: H3Event) => {
   await Session.pruneExpired()
   await TotpBucket.pruneDeletedTotps(body?.days)
   await RevenueCatWebhookEventStore.pruneProcessedEvents(body?.days)
-  return SuccessObject.fromData().toResponse()
+  return SuccessObject.fromData().toResponse(event)
 })

@@ -58,7 +58,7 @@ export class EmailProvider extends AuthProvider {
       if (!('email' in query) || typeof query.email !== 'string') {
         return false
       }
-      if ('locale' in query && (typeof query.locale !== 'string' || !/^[A-Za-z]{2,4}([_-][A-Za-z]{4})?([_-]([A-Za-z]{2}|[0-9]{3}))?$/.test(query.locale))) {
+      if ('locale' in query && (typeof query.locale !== 'string' || !isValidLocale(query.locale))) {
         return false
       }
       return isValidEmail(query.email)
@@ -140,7 +140,10 @@ export class EmailProvider extends AuthProvider {
       await this.sendEmail(email, verificationCode, locale)
     }
 
-    return url
+    return {
+      url,
+      locale,
+    }
   }
 
   private async sendEmail(email: string, verificationCode: string, locale?: string) {
@@ -168,21 +171,27 @@ export class EmailProvider extends AuthProvider {
       if (!('email' in query) || typeof query.email !== 'string') {
         return false
       }
+      if ('locale' in query && (typeof query.locale !== 'string' || !isValidLocale(query.locale))) {
+        return false
+      }
       return isValidEmail(query.email)
     }
 
     let email: string
     let verificationCode: string
+    let locale: string | undefined
 
     if (event.req.method === 'POST') {
-      const result = await readValidatedBody<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
+      const result = await readValidatedBody<H3Event, { email: string, verificationCode: string, locale?: string }>(event, validateQuery)
       email = this.normalizeEmail(result.email)
       verificationCode = result.verificationCode
+      locale = result.locale
     }
     else {
-      const result = await getValidatedQuery<H3Event, { email: string, verificationCode: string }>(event, validateQuery)
+      const result = await getValidatedQuery<H3Event, { email: string, verificationCode: string, locale?: string }>(event, validateQuery)
       email = this.normalizeEmail(result.email)
       verificationCode = result.verificationCode
+      locale = result.locale
     }
 
     const db = useDatabaseWithMetadata()
@@ -212,7 +221,7 @@ export class EmailProvider extends AuthProvider {
       throw new TokenCreationFailedError()
     }
 
-    return this.getCallbackRedirectUrl(emailAuthorizationCode, { email })
+    return this.getCallbackRedirectUrl(emailAuthorizationCode, locale, { email })
   }
 
   protected override async validateLogin(event: AppEvent) {

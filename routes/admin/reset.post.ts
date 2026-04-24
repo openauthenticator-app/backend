@@ -29,5 +29,5 @@ export default defineHandler(async () => {
 
   await db.prepare('CREATE INDEX IF NOT EXISTS revenueCatWebhookEvents_userId_eventTimestamp_index ON revenueCatWebhookEvents(userId, eventTimestamp)').run()
 
-  return SuccessObject.fromData().toResponse()
+  return SuccessObject.fromData().toResponse(event)
 })

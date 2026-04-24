@@ -12,6 +12,6 @@ export default defineHandler({
   ],
   handler: async (event: H3Event) => {
     const authProvider = useAuthProvider(event)
-    return SuccessObject.fromData(await authProvider.login(event as AppEvent)).toResponse()
+    return SuccessObject.fromData(await authProvider.login(event as AppEvent)).toResponse(event)
   },
 })

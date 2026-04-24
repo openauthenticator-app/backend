@@ -11,6 +11,6 @@ export default defineHandler({
     if (await bucket.has(totpUuid as UUID)) {
       await bucket.delete(totpUuid as UUID)
     }
-    return SuccessObject.fromData().toResponse()
+    return SuccessObject.fromData().toResponse(event)
   },
 })

@@ -25,6 +25,6 @@ export default defineHandler({
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
     await bucket.setAll(body)
-    return SuccessObject.fromData().toResponse()
+    return SuccessObject.fromData().toResponse(event)
   },
 })

@@ -14,11 +14,11 @@ export abstract class AuthProvider {
     this.id = id
   }
 
-  public abstract redirect(event: AppEvent): Promise<URL>
+  public abstract redirect(event: AppEvent): Promise<LocalizedRedirectionURL>
 
   public abstract callback(event: AppEvent): ReturnType<typeof this.getCallbackRedirectUrl>
 
-  protected async getCallbackRedirectUrl(authorizationCode: string, additionalQueryParams?: Record<string, string>): Promise<URL> {
+  protected async getCallbackRedirectUrl(authorizationCode: string, locale: string | undefined, additionalQueryParams?: Record<string, string>): Promise<LocalizedRedirectionURL> {
     const url: URL = new URL(`openauthenticator://auth/provider/${this.id}/finish`)
     url.searchParams.append('authorizationCode', authorizationCode)
     if (additionalQueryParams) {
@@ -26,7 +26,10 @@ export abstract class AuthProvider {
         url.searchParams.append(key, value)
       }
     }
-    return url
+    return {
+      url,
+      locale,
+    }
   }
 
   public async login(event: AppEvent): ReturnType<typeof this.finishLogin> {
@@ -123,9 +126,12 @@ export abstract class OAuthProvider extends AuthProvider {
           return false
         }
       }
+      if ('locale' in query && (typeof query.locale !== 'string' || !isValidLocale(query.locale))) {
+        return false
+      }
       return true
     }
-    const { mode, userId } = await getValidatedQuery<H3Event, { mode?: Mode, userId?: string }>(event, validateQuery)
+    const { mode, userId, locale } = await getValidatedQuery<H3Event, { mode?: Mode, userId?: string, locale?: string }>(event, validateQuery)
     if (mode === 'link') {
       const user = await User.findInDatabase({ id: userId })
       if (!user) {
@@ -137,13 +143,19 @@ export abstract class OAuthProvider extends AuthProvider {
     }
     const cookieOptions: CookieSerializeOptions = this.createCookieOptions()
     const state = arctic.generateState()
+    if (locale) {
+      setCookie(event, `${this.id}_locale`, locale)
+    }
     setCookie(event, `${this.id}_auth_state`, state, cookieOptions)
     let codeVerifier: string | undefined
     if (this.needsCodeVerifier) {
       codeVerifier = arctic.generateCodeVerifier()
       setCookie(event, `${this.id}_auth_code_verifier`, codeVerifier, cookieOptions)
     }
-    return this.buildRedirectionUrl(state, codeVerifier)
+    return {
+      url: this.buildRedirectionUrl(state, codeVerifier),
+      locale,
+    }
   }
 
   protected async validateCallbackQueryParameters(event: AppEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string }> {
@@ -173,11 +185,13 @@ export abstract class OAuthProvider extends AuthProvider {
     if (parameters.state !== storedState) {
       throw new InvalidStateError()
     }
+    const storedLocale = getCookie(event, `${this.id}_locale`)
+    deleteCookie(event, `${this.id}_locale`)
     deleteCookie(event, `${this.id}_auth_state`)
     if (this.needsCodeVerifier) {
       deleteCookie(event, `${this.id}_auth_code_verifier`)
     }
-    return this.getCallbackRedirectUrl(parameters.code, this.needsCodeVerifier ? { codeVerifier: codeVerifier! } : undefined)
+    return this.getCallbackRedirectUrl(parameters.code, storedLocale, this.needsCodeVerifier ? { codeVerifier: codeVerifier! } : undefined)
   }
 
   protected abstract validateAuthorizationCode(code: string, codeVerifier?: string): Promise<arctic.OAuth2Tokens>

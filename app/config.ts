@@ -11,6 +11,7 @@ export interface BackendConfig {
   appVersionRange: string | Range
   enableRegistrations: boolean
   adminHeader?: string
+  redirectionPageBuilder: (url: URL | string, locale?: string) => string
   totps: {
     storage: {
       // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
@@ -78,6 +79,25 @@ export default {
   appVersionRange: '>=2.0.0 <3.0.0',
   enableRegistrations: true,
   adminHeader: process.env.ADMIN_HEADER,
+  redirectionPageBuilder: (url: URL | string) => {
+    const escapedUrl = JSON.stringify(url)
+    return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="0; url=${escapedUrl}" />
+  <title>Open Authenticator</title>
+  <script>window.location.href = ${escapedUrl};</script>
+</head>
+<body>
+  <p>
+    Redirecting you to the Open Authenticator app...
+    Please click <a href=${escapedUrl}>here</a> if you're not being redirected.
+  </p>
+</body>
+</html>`
+  },
   totps: {
     storage: {
       driver: 'memory',

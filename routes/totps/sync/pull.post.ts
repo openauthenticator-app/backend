@@ -66,6 +66,6 @@ export default defineHandler({
       inserts,
       updates,
       deletes,
-    }).toResponse()
+    }).toResponse(event)
   },
 })
