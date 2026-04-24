@@ -7,6 +7,7 @@ import {
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
 import { Mailer } from '~/app/email'
+import { User } from '~/app/user'
 import crypto from 'node:crypto'
 import { getValidatedQuery, type H3Event, readValidatedBody } from 'nitro/h3'
 
@@ -51,6 +52,9 @@ export class EmailProvider extends AuthProvider {
       if (!('mode' in query) || (query.mode !== 'login' && query.mode !== 'link')) {
         return false
       }
+      if (query.mode === 'link' && !('userId' in query && typeof query.userId === 'string')) {
+        return false
+      }
       if (!('email' in query) || typeof query.email !== 'string') {
         return false
       }
@@ -60,12 +64,15 @@ export class EmailProvider extends AuthProvider {
       return isValidEmail(query.email)
     }
 
-    const { email: unnormalizedEmail, mode, locale } = await getValidatedQuery<H3Event, { email: string, mode: Mode, locale: string | undefined }>(event, validateBody)
+    const { email: unnormalizedEmail, mode, locale, userId: providerUserId } = await getValidatedQuery<H3Event, { email: string, mode: Mode, locale: string | undefined, userId?: string }>(event, validateBody)
     const email = this.normalizeEmail(unnormalizedEmail)
 
     let userId: string | null = null
     if (mode === 'link') {
-      const user = await useUser(event)
+      const user = await User.findInDatabase({ id: providerUserId })
+      if (!user) {
+        throw new UserNotFoundByIdError()
+      }
       if (user.hasProvider(this)) {
         throw new ProviderAlreadyLinkedError()
       }
@@ -311,6 +318,12 @@ class InvalidVerificationCodeError extends AppError {
 class UserHasPendingVerificationError extends AppError {
   constructor() {
     super('You already have a pending verification email. Please cancel it first.', UserHasPendingVerificationError, 400)
+  }
+}
+
+class UserNotFoundByIdError extends AppError {
+  constructor() {
+    super(`No user found matching the given identifier.`, UserNotFoundByIdError, 404)
   }
 }
 
