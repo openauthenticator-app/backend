@@ -40,7 +40,7 @@ export class EmailProvider extends AuthProvider {
       .get()) as DbEmailVerification | undefined
 
     if (verification) {
-      await this.deleteVerification(email, { cancelCode })
+      await this.deleteVerification(email, { cancelCode, allowMissing: true })
     }
   }
 
@@ -205,7 +205,7 @@ export class EmailProvider extends AuthProvider {
     }
 
     if (this.hasExpired(dbVerification, 'verification')) {
-      await this.deleteVerification(email, { verificationCode })
+      await this.deleteVerification(email, { verificationCode, allowMissing: true })
       throw new ExpiredCodeError()
     }
 
@@ -218,6 +218,20 @@ export class EmailProvider extends AuthProvider {
       .run()
 
     if (!hasExactlyOneChange(updateResult)) {
+      if (updateResult.success && updateResult.changes === 0) {
+        const dbAuthorizationCode = (await db
+          .prepare('SELECT authorizationCode, authorizationCodeExpiration FROM emailVerifications WHERE email = ? AND verificationCode IS NULL AND authorizationCode IS NOT NULL LIMIT 1')
+          .bind(email)
+          .get()) as DbEmailAuthorizationCode | undefined
+
+        if (
+          dbAuthorizationCode?.authorizationCode
+          && dbAuthorizationCode.authorizationCodeExpiration !== null
+          && dbAuthorizationCode.authorizationCodeExpiration >= Date.now()
+        ) {
+          return this.getCallbackRedirectUrl(dbAuthorizationCode.authorizationCode, locale, { email })
+        }
+      }
       throw new TokenCreationFailedError()
     }
 
@@ -248,11 +262,14 @@ export class EmailProvider extends AuthProvider {
     }
 
     if (this.hasExpired(dbVerification, 'authorization')) {
-      await this.deleteVerification(dbVerification.email, { authorizationCode })
+      await this.deleteVerification(dbVerification.email, { authorizationCode, allowMissing: true })
       throw new ExpiredCodeError()
     }
 
-    await this.deleteVerification(dbVerification.email, { authorizationCode })
+    const deleteResult = await this.deleteVerification(dbVerification.email, { authorizationCode, allowMissing: true })
+    if (deleteResult.changes === 0) {
+      throw new InvalidAuthorizationCodeError()
+    }
     return dbVerification.email
   }
 
@@ -269,7 +286,7 @@ export class EmailProvider extends AuthProvider {
 
   private async deleteVerification(
     email: string,
-    options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string } = {},
+    options: { verificationCode?: string, userId?: string, authorizationCode?: string, cancelCode?: string, allowMissing?: boolean } = {},
   ) {
     const db = useDatabaseWithMetadata()
 
@@ -298,9 +315,11 @@ export class EmailProvider extends AuthProvider {
       .bind(...values)
       .run()
 
-    if (!hasExactlyOneChange(deleteResult)) {
+    if (!hasExactlyOneChange(deleteResult) && !(options.allowMissing && deleteResult.success && deleteResult.changes === 0)) {
       throw new DeleteVerificationFailedError()
     }
+
+    return deleteResult
   }
 
   private normalizeEmail(email: string) {
@@ -316,6 +335,11 @@ interface DbEmailVerification {
   authorizationCode: string | null
   authorizationCodeExpiration: number | null
   cancelCode: string
+}
+
+interface DbEmailAuthorizationCode {
+  authorizationCode: string | null
+  authorizationCodeExpiration: number | null
 }
 
 class InvalidVerificationCodeError extends AppError {

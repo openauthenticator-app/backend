@@ -161,7 +161,7 @@ export class Session {
     }
   }
 
-  public async revoke(refreshToken: string, appClientId: string) {
+  public async revoke(refreshToken: string, appClientId: string, options: { allowMissing?: boolean } = {}) {
     this.assertAppClientId(appClientId)
     if (backendConfig.authentication.strategy === 'stateless') {
       return
@@ -176,6 +176,9 @@ export class Session {
       .get()) as DbSession | undefined
 
     if (!dbSession) {
+      if (options.allowMissing) {
+        return
+      }
       throw new InvalidSessionError()
     }
 
@@ -189,6 +192,12 @@ export class Session {
       .run()
 
     if (!hasExactlyOneChange(deleteResult)) {
+      if (deleteResult.success && deleteResult.changes === 0) {
+        if (options.allowMissing) {
+          return
+        }
+        throw new InvalidSessionError()
+      }
       throw new TokenRevocationError()
     }
   }

@@ -14,7 +14,7 @@ export default defineHandler({
     const appEvent = event as AppEvent
     const { refreshToken } = await readValidatedBody<H3Event, { refreshToken: string }>(appEvent, validateBody)
     const session = await Session.decodeVerifiedToken(refreshToken, 'refresh')
-    await session.revoke(refreshToken, appEvent.context.appClientId)
+    await session.revoke(refreshToken, appEvent.context.appClientId, { allowMissing: true })
     return SuccessObject.fromData().toResponse(event)
   },
 })
