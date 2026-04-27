@@ -9,7 +9,6 @@ import {
   functionToStringIntegration,
   getCurrentScope,
   getIntegrationsToSetup,
-  getIsolationScope,
   initAndBind,
   linkedErrorsIntegration,
   nodeStackLineParser,
@@ -19,6 +18,79 @@ import {
 } from '@sentry/core'
 
 const stackParser = createStackParser(nodeStackLineParser())
+
+function getPathname(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined
+  }
+
+  try {
+    return new URL(url).pathname
+  }
+  catch {
+    try {
+      return new URL(url, backendConfig.url).pathname
+    }
+    catch {
+      return url.split('?')[0]
+    }
+  }
+}
+
+function getAuthProvider(pathname: string | undefined): string | undefined {
+  return pathname?.match(/^\/auth\/provider\/([^/]+)/)?.[1]
+}
+
+function getCaptureContext(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  event: any,
+  statusCode: number,
+) {
+  const pathname = getPathname(event?.req?.url)
+  const authProvider = getAuthProvider(pathname)
+  const tags: Record<string, string | number | boolean> = {
+    statusCode,
+  }
+
+  if (event?.req?.method) {
+    tags.method = event.req.method
+  }
+  if (pathname) {
+    tags.path = pathname
+  }
+  if (authProvider) {
+    tags.authProvider = authProvider
+  }
+  if (event?.context?.appVersion) {
+    tags.appVersion = event.context.appVersion
+  }
+  if (event?.context?.appClientId) {
+    tags.appClientId = event.context.appClientId
+  }
+  if (typeof event?.context?.user !== 'undefined') {
+    tags.authenticated = !!event.context.user
+  }
+
+  return {
+    tags,
+    contexts: {
+      request: {
+        method: event?.req?.method,
+        path: pathname,
+        url: pathname,
+      },
+      app: {
+        version: event?.context?.appVersion,
+        clientId: event?.context?.appClientId,
+      },
+      auth: {
+        provider: authProvider,
+        authenticated: !!event?.context?.user,
+      },
+    },
+    ...(event?.context?.user?.id && { user: { id: event.context.user.id } }),
+  }
+}
 
 function makeFetchTransport(options: BaseTransportOptions): Transport {
   return createTransport(options, async (request): Promise<TransportMakeRequestResponse> => {
@@ -83,15 +155,7 @@ export default definePlugin((nitroApp) => {
     }
 
     try {
-      if (event?.req) {
-        getIsolationScope().setContext('request', {
-          method: event.req.method,
-          url: event.req.url,
-          headers: event.req.headers,
-        })
-      }
-
-      captureException(error)
+      captureException(error, getCaptureContext(event, statusCode))
 
       await getCurrentScope().getClient()?.flush(2_000)
     }
