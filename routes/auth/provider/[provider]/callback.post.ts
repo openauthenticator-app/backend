@@ -12,7 +12,7 @@ export default defineHandler({
       case 'email':
         requireAppVersionHeader(event)
         requireAppClientId(event)
-        return SuccessObject.fromData(await authProvider.callback(event as AppEvent)).toResponse(event)
+        return SuccessObject.fromData((await authProvider.callback(event as AppEvent)).url).toResponse(event)
       case 'apple':
       default:
         return sendRedirectResponse(event, await authProvider.callback(event as AppEvent))

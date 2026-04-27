@@ -16,6 +16,26 @@ export class EmailProvider extends AuthProvider {
     super('email')
   }
 
+  public static async pruneExpiredVerifications() {
+    const now = Date.now()
+    await useDatabaseWithMetadata()
+      .prepare(`
+        DELETE FROM emailVerifications
+        WHERE (
+          authorizationCode IS NOT NULL
+          AND authorizationCodeExpiration IS NOT NULL
+          AND authorizationCodeExpiration < ?
+        )
+        OR (
+          authorizationCode IS NULL
+          AND verificationCodeExpiration IS NOT NULL
+          AND verificationCodeExpiration < ?
+        )
+      `)
+      .bind(now, now)
+      .run()
+  }
+
   public async cancel(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
       if (!query || typeof query !== 'object') {
@@ -210,32 +230,42 @@ export class EmailProvider extends AuthProvider {
     }
 
     const emailAuthorizationCode = generateRandomString()
-    const authorizationCodeExpiration = Date.now() + 5 * 60 * 1000
+    const now = Date.now()
+    const authorizationCodeExpiration = now + 5 * 60 * 1000
 
     const updateResult = await db
-      .prepare('UPDATE emailVerifications SET authorizationCode = ?, authorizationCodeExpiration = ?, verificationCode = NULL, verificationCodeExpiration = NULL WHERE email = ? AND verificationCode = ?')
-      .bind(emailAuthorizationCode, authorizationCodeExpiration, email, verificationCode)
+      .prepare('UPDATE emailVerifications SET authorizationCode = ?, authorizationCodeExpiration = ? WHERE email = ? AND verificationCode = ? AND (authorizationCode IS NULL OR authorizationCodeExpiration < ?)')
+      .bind(emailAuthorizationCode, authorizationCodeExpiration, email, verificationCode, now)
       .run()
 
     if (!hasExactlyOneChange(updateResult)) {
       if (updateResult.success && updateResult.changes === 0) {
-        const dbAuthorizationCode = (await db
-          .prepare('SELECT authorizationCode, authorizationCodeExpiration FROM emailVerifications WHERE email = ? AND verificationCode IS NULL AND authorizationCode IS NOT NULL LIMIT 1')
-          .bind(email)
-          .get()) as DbEmailAuthorizationCode | undefined
-
-        if (
-          dbAuthorizationCode?.authorizationCode
-          && dbAuthorizationCode.authorizationCodeExpiration !== null
-          && dbAuthorizationCode.authorizationCodeExpiration >= Date.now()
-        ) {
-          return this.getCallbackRedirectUrl(dbAuthorizationCode.authorizationCode, locale, { email })
+        const dbAuthorizationCode = await this.findExistingAuthorizationCode(email, verificationCode)
+        if (dbAuthorizationCode) {
+          return this.getCallbackRedirectUrl(dbAuthorizationCode, locale, { email })
         }
       }
       throw new TokenCreationFailedError()
     }
 
     return this.getCallbackRedirectUrl(emailAuthorizationCode, locale, { email })
+  }
+
+  private async findExistingAuthorizationCode(email: string, verificationCode: string): Promise<string | null> {
+    const dbAuthorizationCode = (await useDatabaseWithMetadata()
+      .prepare('SELECT authorizationCode, authorizationCodeExpiration FROM emailVerifications WHERE email = ? AND verificationCode = ? AND authorizationCode IS NOT NULL LIMIT 1')
+      .bind(email, verificationCode)
+      .get()) as DbEmailAuthorizationCode | undefined
+
+    if (
+      dbAuthorizationCode?.authorizationCode
+      && dbAuthorizationCode.authorizationCodeExpiration !== null
+      && dbAuthorizationCode.authorizationCodeExpiration >= Date.now()
+    ) {
+      return dbAuthorizationCode.authorizationCode
+    }
+
+    return null
   }
 
   protected override async validateLogin(event: AppEvent) {
