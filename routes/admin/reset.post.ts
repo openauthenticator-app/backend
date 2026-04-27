@@ -1,6 +1,6 @@
-import { defineHandler } from 'nitro/h3'
+import { defineHandler, type H3Event } from 'nitro/h3'
 
-export default defineHandler(async () => {
+export default defineHandler(async (event: H3Event) => {
   const db = useDatabaseWithMetadata()
   await db.prepare('DROP TABLE IF EXISTS users').run()
   await db.prepare('DROP TABLE IF EXISTS sessions').run()
