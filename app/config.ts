@@ -4,6 +4,7 @@ import type { BuiltinDriverName, BuiltinDriverOptions } from 'unstorage'
 import type { DatabaseConnectionConfig } from 'nitro/types'
 import type { CookieSerializeOptions } from '~/app/auth/providers/provider'
 import type { MailerLibrary, MailerOptions } from '~/app/email'
+import type { RateLimitAlgorithm } from '~/app/ratelimiter'
 import 'dotenv/config'
 
 export interface BackendConfig {
@@ -67,6 +68,7 @@ export interface BackendConfig {
   }
   rateLimiter: {
     enable: boolean
+    algorithm: RateLimitAlgorithm
     storage: {
       // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
       [K in BuiltinDriverName]: { driver: K } & BuiltinDriverOptions[K];
@@ -196,6 +198,7 @@ If you haven't asked to log in, you can safely ignore this email.`,
   },
   rateLimiter: {
     enable: true,
+    algorithm: 'sliding-window',
     storage: {
       driver: 'memory',
     },

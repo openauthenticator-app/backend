@@ -30,6 +30,7 @@ export const rateLimit = (
       store: createUnstorageStore({
         storage: useStorage('rateLimiter'),
       }),
+      algorithm: backendConfig.rateLimiter.algorithm,
       keyGenerator: options.keyGenerator ?? defaultKeyGenerator,
     })
   : () => {}
