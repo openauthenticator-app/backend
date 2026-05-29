@@ -31,7 +31,13 @@ export class TotpBucket {
 
   static async pruneDeletedTotps(days?: number) {
     const storage = useStorage('totps')
-    const users = await storage.getKeys()
+    const users = new Set(
+      (await storage.getKeys())
+        .map(key => key.split(':'))
+        .filter((parts): parts is [string, 'deleted', ...string[]] => parts.length >= 3 && parts[1] === 'deleted')
+        .map(([user]) => user),
+    )
+
     for (const user of users) {
       const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<TotpTombstone>(`totps/${user}/deleted`))
       await bucket.prune(days)
