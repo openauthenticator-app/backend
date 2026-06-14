@@ -40,7 +40,7 @@
 
 Open Authenticator Backend is powered by [Nitro](https://nitro.build/). You will need the following in order to be able to run it :
 
-* A **Node.js environment**. Either a server or a serverless environment (eg. Cloudflare, Vercel, ...).
+* A **Node.js environment** and the [pnpm](https://pnpm.io/) package manager. Either a server or a serverless environment (eg. Cloudflare, Vercel, ...).
 * A **database**. The connector should be compatible with [DB0](https://db0.unjs.io) (see all available connectors [here](https://db0.unjs.io/connectors)). This is where all users' information will be stored.
 * A **storage**. The connector should be compatible with [unstorage](https://unstorage.unjs.io) (see all available drivers [here](https://unstorage.unjs.io/drivers)). This is where all TOTPs will be stored.
 * _Optionally_, an **email account**, for sending magic links.
@@ -53,14 +53,14 @@ The backend is still in development. To install it, currently, you only have to 
 ```sh
 git clone https://github.com/openauthenticator-app/backend.git
 cd backend
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 And to start it :
 
 ```sh
-npm run start
+pnpm start
 ```
 
 ### Configuration

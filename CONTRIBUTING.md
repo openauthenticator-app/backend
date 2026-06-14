@@ -54,7 +54,7 @@ and it will be automatically reflected in the PR.
 To download required dependencies, run the following command in the app directory :
 
 ```shell
-npm install
+pnpm install
 ```
 
 ### Performing changes

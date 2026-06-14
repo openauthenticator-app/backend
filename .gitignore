@@ -10,6 +10,5 @@ dist
 bruno
 server/reset.ts
 backend.config.dev.ts
-package-lock.json
 .wrangler
 .codex
