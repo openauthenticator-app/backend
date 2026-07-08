@@ -1,4 +1,7 @@
-import { AppError, type AppEvent, Session, User } from '~/app'
+import { Session } from '~/app/auth/session'
+import { AppError } from '~/app/error'
+import type { AppEvent } from '~/app/event'
+import { User } from '~/app/user'
 
 export const useUser = async (event: AppEvent) => {
   const session = await Session.readAndVerifyFromAuthorizationHeader(event)

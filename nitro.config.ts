@@ -1,10 +1,16 @@
 import { defineConfig } from 'nitro/config'
+import { fileURLToPath } from 'url'
 import backendConfig from './backend.config'
+
+const rootDir = fileURLToPath(new URL('.', import.meta.url))
 
 // https://nitro.build/config
 export default defineConfig({
   compatibilityDate: 'latest',
   serverDir: './',
+  alias: {
+    '~': rootDir,
+  },
   rolldownConfig: {
     resolve: {
       mainFields: ['module', 'main'],

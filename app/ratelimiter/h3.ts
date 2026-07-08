@@ -1,4 +1,4 @@
-import { checkRateLimit, type RateLimitAlgorithm, type RateLimitInfo, } from '~/app/ratelimiter/limit'
+import { checkRateLimit, type RateLimitAlgorithm, type RateLimitInfo } from '~/app/ratelimiter/limit'
 import type { RateLimitStore } from '~/app/ratelimiter/stores/store'
 import { MemoryStore } from '~/app/ratelimiter/stores/memory'
 import { eventHandler, type EventHandler, getRequestIP, H3Event } from 'nitro/h3'
