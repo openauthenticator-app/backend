@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { useStorage } from 'nitro/storage'
 import { createUnstorageStore, getClientIP, rateLimiter } from '~/app'
 import type { H3Event, Middleware } from 'nitro/h3'

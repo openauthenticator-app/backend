@@ -28,16 +28,6 @@ export default defineConfig({
       prerender: true,
     },
   },
-  imports: {
-    dirs: ['./utils'],
-    imports: [
-      {
-        name: 'default',
-        as: 'backendConfig',
-        from: '~/backend.config.ts',
-      },
-    ],
-  },
   errorHandler: './error',
   prerender: {
     routes: ['/'],

@@ -1,3 +1,4 @@
+import { SuccessObject } from '~/utils/utils'
 import { EmailProvider, RevenueCatWebhookEventStore, Session, TotpBucket } from '~/app'
 import { defineTask } from 'nitro/task'
 
@@ -12,6 +13,6 @@ export default defineTask({
     await EmailProvider.pruneExpiredVerifications()
     await TotpBucket.pruneDeletedTotps()
     await RevenueCatWebhookEventStore.pruneProcessedEvents()
-    return SuccessObject.fromData().toResponse()
+    return SuccessObject.fromData().toTaskResult()
   },
 })

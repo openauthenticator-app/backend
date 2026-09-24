@@ -1,3 +1,4 @@
+import { useUser } from '~/utils/user'
 import type { AppEvent } from '~/app'
 import { defineHandler, type H3Event } from 'nitro/h3'
 

@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { defineHandler, type H3Event } from 'nitro/h3'
 import { AppError } from '~/app/error'
 

@@ -1,3 +1,5 @@
+import backendConfig from '~/backend.config'
+import { useDatabaseWithMetadata } from '~/utils/db'
 import type {
   Attributes,
   Webhook,

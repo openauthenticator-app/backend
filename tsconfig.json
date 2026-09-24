@@ -1,9 +1,6 @@
 {
   // https://nitro.build/guide/typescript
   "extends": ["nitro/tsconfig"],
-  "include": [
-    "./node_modules/.nitro/types/**/*.d.ts"
-  ],
   "compilerOptions": {
     "paths": {
       "~/*": [

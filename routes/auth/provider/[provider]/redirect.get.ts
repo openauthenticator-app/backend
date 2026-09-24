@@ -1,3 +1,6 @@
+import { useAuthProvider } from '~/utils/auth'
+import { buildScopedRateLimitKey, rateLimit } from '~/utils/ratelimit'
+import { sendRedirectResponse } from '~/utils/utils'
 import { defineHandler, getRouterParam, type H3Event } from 'nitro/h3'
 import { type AppEvent, getClientIP } from '~/app'
 

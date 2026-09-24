@@ -1,4 +1,10 @@
-import * as arctic from 'arctic'
+import backendConfig from '~/backend.config'
+import type { AuthProviderId } from '~/utils/auth'
+import { useUser } from '~/utils/user'
+import type { LocalizedRedirectionURL } from '~/utils/utils'
+import { isValidLocale } from '~/utils/validation'
+import { decodeJwt } from 'jose'
+import { generateOAuthSecret, type OAuthTokens } from '~/app/auth/oauth'
 import { AppError } from '~/app/error'
 import { Session } from '~/app/auth/session'
 import { User } from '~/app/user'
@@ -111,7 +117,7 @@ export abstract class OAuthProvider extends AuthProvider {
     }
   }
 
-  abstract buildRedirectionUrl(state?: string, codeVerifier?: string): URL
+  abstract buildRedirectionUrl(state: string, codeVerifier?: string): URL | Promise<URL>
 
   public override async redirect(event: AppEvent) {
     const validateQuery = (query: unknown): boolean => {
@@ -142,18 +148,18 @@ export abstract class OAuthProvider extends AuthProvider {
       }
     }
     const cookieOptions: CookieSerializeOptions = this.createCookieOptions()
-    const state = arctic.generateState()
+    const state = generateOAuthSecret()
     if (locale) {
       setCookie(event, `${this.id}_locale`, locale)
     }
     setCookie(event, `${this.id}_auth_state`, state, cookieOptions)
     let codeVerifier: string | undefined
     if (this.needsCodeVerifier) {
-      codeVerifier = arctic.generateCodeVerifier()
+      codeVerifier = generateOAuthSecret()
       setCookie(event, `${this.id}_auth_code_verifier`, codeVerifier, cookieOptions)
     }
     return {
-      url: this.buildRedirectionUrl(state, codeVerifier),
+      url: await this.buildRedirectionUrl(state, codeVerifier),
       locale,
     }
   }
@@ -194,7 +200,7 @@ export abstract class OAuthProvider extends AuthProvider {
     return this.getCallbackRedirectUrl(parameters.code, storedLocale, this.needsCodeVerifier ? { codeVerifier: codeVerifier! } : undefined)
   }
 
-  protected abstract validateAuthorizationCode(code: string, codeVerifier?: string): Promise<arctic.OAuth2Tokens>
+  protected abstract validateAuthorizationCode(code: string, codeVerifier?: string): Promise<OAuthTokens>
 
   protected override async validateLogin(event: AppEvent) {
     const validateBody = (query: unknown): boolean => {
@@ -204,7 +210,7 @@ export abstract class OAuthProvider extends AuthProvider {
       return 'authorizationCode' in query && typeof query.authorizationCode === 'string'
     }
     const { authorizationCode, codeVerifier } = await readValidatedBody<H3Event, { authorizationCode: string, codeVerifier?: string }>(event, validateBody)
-    let tokens: arctic.OAuth2Tokens
+    let tokens: OAuthTokens
     try {
       tokens = await this.validateAuthorizationCode(authorizationCode, codeVerifier)
     }
@@ -215,8 +221,11 @@ export abstract class OAuthProvider extends AuthProvider {
     return id
   }
 
-  protected async findId(tokens: arctic.OAuth2Tokens): Promise<{ id: string }> {
-    const claims = arctic.decodeIdToken(tokens.idToken())
+  protected async findId(tokens: OAuthTokens): Promise<{ id: string }> {
+    if (!tokens.idToken) {
+      throw new IdTokenDecodeFailedError()
+    }
+    const claims = decodeJwt(tokens.idToken)
     if (!claims || typeof claims !== 'object' || !('sub' in claims) || typeof claims.sub !== 'string') {
       throw new IdTokenDecodeFailedError()
     }

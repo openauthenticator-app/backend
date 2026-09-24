@@ -1,3 +1,6 @@
+import { useAuthProvider } from '~/utils/auth'
+import { rateLimit } from '~/utils/ratelimit'
+import { sendRedirectResponse } from '~/utils/utils'
 import type { AppEvent } from '~/app'
 import { defineHandler, type H3Event } from 'nitro/h3'
 

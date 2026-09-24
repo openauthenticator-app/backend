@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import type { NodemailerMailerOptions } from './nodemailer'
 import type { WorkerMailerOptions } from './workermailer'
 import type { SimpleMailerFreeModeOptions, SimpleMailerTemplateModeOptions } from './simplemailer'

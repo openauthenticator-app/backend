@@ -1,3 +1,4 @@
+import { SuccessObject } from '~/utils/utils'
 import { EmailProvider } from '~/app'
 import { defineHandler, type H3Event } from 'nitro/h3'
 

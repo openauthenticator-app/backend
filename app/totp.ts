@@ -1,3 +1,4 @@
+import { useDatabaseWithMetadata } from '~/utils/db'
 import type { Storage } from 'unstorage'
 import { User } from '~/app/user'
 import { AppError } from '~/app/error'

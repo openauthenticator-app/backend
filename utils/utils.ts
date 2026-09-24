@@ -1,7 +1,8 @@
+import backendConfig from '~/backend.config'
 import { type H3Event, HTTPError } from 'nitro/h3'
 import { AppError, type User } from '~/app'
 
-export const assert = (condition: boolean, error?: HTTPError | string): asserts condition => {
+export function assert(condition: boolean, error?: HTTPError | string): asserts condition {
   if (!condition) {
     throw error instanceof HTTPError ? error : new AppError(error ?? 'Assertion failed.', 'AssertionFailed')
   }
@@ -67,6 +68,15 @@ export class ReturnObject {
         headers,
       },
     )
+  }
+
+  public toTaskResult(): { result: { success: boolean, data: unknown } } {
+    return {
+      result: {
+        success: this.success,
+        data: this.data,
+      },
+    }
   }
 }
 

@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { AppError } from '~/app'
 import type { H3Event } from 'nitro/h3'
 import semver from 'semver'

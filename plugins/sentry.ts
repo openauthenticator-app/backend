@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { definePlugin } from 'nitro'
 import {
   type BaseTransportOptions,
@@ -11,11 +12,10 @@ import {
   getIntegrationsToSetup,
   initAndBind,
   linkedErrorsIntegration,
-  nodeStackLineParser,
-  ServerRuntimeClient,
   type Transport,
   type TransportMakeRequestResponse,
 } from '@sentry/core'
+import { nodeStackLineParser, ServerRuntimeClient } from '@sentry/core/server'
 
 const stackParser = createStackParser(nodeStackLineParser())
 
