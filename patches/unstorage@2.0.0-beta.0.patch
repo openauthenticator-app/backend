@@ -1,0 +1,24 @@
+diff --git a/dist/drivers/cloudflare-r2-binding.mjs b/dist/drivers/cloudflare-r2-binding.mjs
+index 2c577e051715a776b9bacb2979302d9eeddcdc8a..c647b9133a79385c8e9f89926b5959c3d62686a1 100644
+--- a/dist/drivers/cloudflare-r2-binding.mjs
++++ b/dist/drivers/cloudflare-r2-binding.mjs
+@@ -6,7 +6,18 @@ const driver = (opts = {}) => {
+ 	const getKeys = async (base) => {
+ 		const binding = await getR2Binding(opts.binding);
+ 		const prefix = joinKeys(opts.base || "", base || "");
+-		return (await binding.list(prefix ? { prefix: `${prefix}:` } : void 0)).objects.map((obj) => obj.key);
++		// R2 lists at most 1000 objects per call : follow the cursor until all the keys have been listed.
++		const keys = [];
++		let cursor = void 0;
++		do {
++			const list = await binding.list({
++				...prefix ? { prefix: `${prefix}:` } : {},
++				...cursor ? { cursor } : {}
++			});
++			keys.push(...list.objects.map((obj) => obj.key));
++			cursor = list.truncated ? list.cursor : void 0;
++		} while (cursor);
++		return keys;
+ 	};
+ 	return {
+ 		name: DRIVER_NAME,

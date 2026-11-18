@@ -1,2 +1,4 @@
 allowBuilds:
   esbuild: true
+patchedDependencies:
+  unstorage@2.0.0-beta.0: patches/unstorage@2.0.0-beta.0.patch
