@@ -87,8 +87,7 @@ export class TotpBucket {
         }
         for (const record of Object.values(data.active)) {
           // Older servers accepted generation parameters outside the generator's range.
-          if (!isValidDigits(record.digits)) delete record.digits
-          if (!isValidPeriod(record.validity)) delete record.validity
+          dropUnsupportedParameters(record as unknown as Record<string, unknown>)
         }
         if (await this.head() === null) return { revision, data }
       }

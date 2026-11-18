@@ -7,17 +7,26 @@ export const isValidTimestamp = (value: unknown): value is number => typeof valu
 export const isValidDigits = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 4 && value <= 15
 export const isValidPeriod = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 2147483647
 
+/**
+ * Removes the generation parameters that are not supported, so that the default ones are used instead.
+ * Apps up to 2.1.0 (and older servers) accepted any number of digits and any period.
+ */
+export const dropUnsupportedParameters = (object: Record<string, unknown>) => {
+  if ('digits' in object && !isValidDigits(object.digits)) {
+    delete object.digits
+  }
+  if ('validity' in object && !isValidPeriod(object.validity)) {
+    delete object.validity
+  }
+}
+
+/** Checks whether the given [object] is an encrypted TOTP. Unsupported generation parameters are dropped. */
 export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if (!isPlainObject(object)) {
     return false
   }
+  dropUnsupportedParameters(object)
   if ('algorithm' in object && (typeof object.algorithm !== 'string' || !['SHA1', 'SHA256', 'SHA512'].includes(object.algorithm))) {
-    return false
-  }
-  if ('digits' in object && !isValidDigits(object.digits)) {
-    return false
-  }
-  if ('validity' in object && !isValidPeriod(object.validity)) {
     return false
   }
   if (!isValidTimestamp(object.updatedAt)) {
