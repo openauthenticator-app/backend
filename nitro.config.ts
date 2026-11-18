@@ -32,16 +32,18 @@ export default defineConfig({
   prerender: {
     routes: ['/'],
   },
-  storage: {
+  kv: {
     totps: backendConfig.totps.storage,
     ...(backendConfig.rateLimiter.enable && { rateLimiter: backendConfig.rateLimiter.storage }),
   },
-  devStorage: {
-    totps: {
-      driver: 'fs',
-      base: './.data/storage',
+  $development: {
+    kv: {
+      totps: {
+        driver: 'fs',
+        base: './.data/storage',
+      },
+      ...(backendConfig.rateLimiter.enable && { rateLimiter: { driver: 'memory' } }),
     },
-    ...(backendConfig.rateLimiter.enable && { rateLimiter: { driver: 'memory' } }),
   },
   database: {
     default: backendConfig.authentication.database,
