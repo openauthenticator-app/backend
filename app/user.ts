@@ -1,7 +1,7 @@
 import backendConfig from '~/backend.config'
 import type { AuthProviderId } from '~/utils/auth'
 import { generateRandomString } from '~/utils/crypto'
-import { useDatabaseWithMetadata } from '~/utils/db'
+import { hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
 import { booleanToNumber, numberToBoolean } from '~/utils/utils'
 import type { AuthProvider } from '~/app/auth/providers/provider'
 import { TotpBucket } from '~/app/totp'
@@ -45,16 +45,9 @@ export class User {
     const userId = options.userId ?? generateRandomString()
     const contributorPlan = options.contributorPlan ?? false
 
-    const fields: string[] = ['id', 'contributorPlan']
-    const values: (string | number)[] = [userId, booleanToNumber(contributorPlan)]
-
-    for (const providerId in providersIds) {
-      const value = providersIds[providerId as ProviderId]
-      if (value) {
-        fields.push(providerId)
-        values.push(value)
-      }
-    }
+    const filteredProvidersIds = filterProvidersIds(providersIds)
+    const fields: string[] = ['id', 'contributorPlan', ...Object.keys(filteredProvidersIds)]
+    const values: (string | number)[] = [userId, booleanToNumber(contributorPlan), ...Object.values(filteredProvidersIds) as string[]]
 
     const db = useDatabaseWithMetadata()
     const insertResult = await db
@@ -62,8 +55,8 @@ export class User {
       .bind(...values)
       .run()
 
-    return insertResult.success && insertResult.changes === 1
-      ? new User(userId, contributorPlan, providersIds)
+    return hasExactlyOneChange(insertResult)
+      ? new User(userId, contributorPlan, filteredProvidersIds)
       : null
   }
 
@@ -93,18 +86,8 @@ export class User {
       return null
     }
 
-    const { id, contributorPlan, ...unfilteredProvidersIds } = dbUser
-    const providersIds = unfilteredProvidersIds as Record<ProviderId, string | null>
-    const filteredProvidersIds: Partial<Record<ProviderId, string>> = {}
-
-    for (const providerId in providersIds) {
-      const value = providersIds[providerId as ProviderId]
-      if (value) {
-        filteredProvidersIds[providerId as ProviderId] = value
-      }
-    }
-
-    return new User(id, numberToBoolean(contributorPlan), filteredProvidersIds)
+    const { id, contributorPlan, ...providersIds } = dbUser
+    return new User(id, numberToBoolean(contributorPlan), filterProvidersIds(providersIds))
   }
 
   async updateInDatabase(options: Partial<{ contributorPlan?: boolean } & Record<ProviderId, string | null>>) {
@@ -129,7 +112,7 @@ export class User {
       .bind(...values)
       .run()
 
-    return !!updateResult.success && updateResult.changes === 1
+    return hasExactlyOneChange(updateResult)
   }
 
   async deleteFromDatabase(
@@ -154,13 +137,17 @@ export class User {
       await TotpBucket.of(this).clear(true)
     }
 
+    await db
+      .prepare('DELETE FROM emailVerifications WHERE userId = ?')
+      .bind(this.id)
+      .run()
+
     const deleteUserResult = await db
       .prepare('DELETE FROM users WHERE id = ?')
       .bind(this.id)
       .run()
 
-    success = success && !!deleteUserResult.success && deleteUserResult.changes === 1
-    return success
+    return success && hasExactlyOneChange(deleteUserResult)
   }
 
   public toJson() {
@@ -172,5 +159,9 @@ export class User {
     }
   }
 }
+
+const filterProvidersIds = (providersIds: Partial<Record<ProviderId, string | null | undefined>>): Partial<Record<ProviderId, string>> => Object.fromEntries(
+  Object.entries(providersIds).filter((entry): entry is [ProviderId, string] => !!entry[1]),
+)
 
 type DbUser = { id: string, contributorPlan: number } & Record<ProviderId, string | null>

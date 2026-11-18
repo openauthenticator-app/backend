@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { requireAppClientId, requireAppVersionHeader } from '~/utils/headers'
 import pkg from '~/package.json' with { type: 'json' }
 import { defineHandler, type H3Event } from 'nitro/h3'
@@ -20,7 +21,7 @@ const protectedPaths = [
 
 export default defineHandler(async (event: H3Event) => {
   event.res.headers.set('Backend-Version', pkg.version)
-  event.res.headers.set('Backend-App-Version-Range', '>=2.0.0 <3.0.0')
+  event.res.headers.set('Backend-App-Version-Range', backendConfig.appVersionRange.toString())
   let ignore = true
   const path = event.url.pathname
   for (const { prefix, exclusionSuffixes = [] } of protectedPaths) {

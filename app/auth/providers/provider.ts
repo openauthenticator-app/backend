@@ -82,7 +82,9 @@ export abstract class AuthProvider {
     if (existingUser) {
       throw new ProviderUserAlreadyExistsError()
     }
-    await currentUser?.updateInDatabase({ [idInUser]: providerUserId })
+    if (!await currentUser.updateInDatabase({ [idInUser]: providerUserId })) {
+      throw new UserUpdateFailedError()
+    }
     return {
       userId: currentUser.id,
       providerUserId,
@@ -96,9 +98,9 @@ export abstract class AuthProvider {
         throw new CannotUnlinkLastProviderError()
       }
       const idInUser = User.getAuthProviderFieldName(this)
-      await user.updateInDatabase({
-        [idInUser]: null,
-      })
+      if (!await user.updateInDatabase({ [idInUser]: null })) {
+        throw new UserUpdateFailedError()
+      }
     }
   }
 }
@@ -150,7 +152,7 @@ export abstract class OAuthProvider extends AuthProvider {
     const cookieOptions: CookieSerializeOptions = this.createCookieOptions()
     const state = generateOAuthSecret()
     if (locale) {
-      setCookie(event, `${this.id}_locale`, locale)
+      setCookie(event, `${this.id}_locale`, locale, cookieOptions)
     }
     setCookie(event, `${this.id}_auth_state`, state, cookieOptions)
     let codeVerifier: string | undefined
@@ -252,7 +254,7 @@ class RegistrationsDisabledError extends AppError {
   }
 }
 
-class UserNotFoundByIdError extends AppError {
+export class UserNotFoundByIdError extends AppError {
   constructor() {
     super(`No user found matching the given identifier.`, UserNotFoundByIdError, 404)
   }
@@ -297,6 +299,12 @@ class IdTokenDecodeFailedError extends AppError {
 class UserCreationFailedError extends AppError {
   constructor() {
     super('Failed to create user.', UserCreationFailedError)
+  }
+}
+
+class UserUpdateFailedError extends AppError {
+  constructor() {
+    super('Failed to update user.', UserUpdateFailedError)
   }
 }
 

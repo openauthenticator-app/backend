@@ -1,6 +1,6 @@
 import backendConfig from '~/backend.config'
 import { defineHandler, type H3Event } from 'nitro/h3'
-import { AppError } from '~/app/error'
+import { AppError, UnauthorizedError } from '~/app/error'
 
 export default defineHandler(async (event: H3Event) => {
   if (!event.url.pathname.startsWith('/admin')) {
@@ -19,11 +19,5 @@ export default defineHandler(async (event: H3Event) => {
 class AdminHeaderNotSetError extends AppError {
   constructor() {
     super('Admin header is not set.', AdminHeaderNotSetError, 500)
-  }
-}
-
-class UnauthorizedError extends AppError {
-  constructor() {
-    super('Unauthorized.', UnauthorizedError, 401)
   }
 }

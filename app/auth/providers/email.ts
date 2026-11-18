@@ -7,6 +7,7 @@ import {
   InvalidAuthorizationCodeError,
   type Mode,
   ProviderAlreadyLinkedError,
+  UserNotFoundByIdError,
 } from '~/app/auth/providers/provider'
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
@@ -55,17 +56,7 @@ export class EmailProvider extends AuthProvider {
     }
 
     const { email: rawEmail, cancelCode } = await readValidatedBody<H3Event, { email: string, cancelCode: string }>(event, validateBody)
-    const email = this.normalizeEmail(rawEmail)
-
-    const db = useDatabaseWithMetadata()
-    const verification = (await db
-      .prepare('SELECT * FROM emailVerifications WHERE email = ? AND cancelCode = ? LIMIT 1')
-      .bind(email, cancelCode)
-      .get()) as DbEmailVerification | undefined
-
-    if (verification) {
-      await this.deleteVerification(email, { cancelCode, allowMissing: true })
-    }
+    await this.deleteVerification(this.normalizeEmail(rawEmail), { cancelCode, allowMissing: true })
   }
 
   public override async redirect(event: AppEvent) {
@@ -106,17 +97,12 @@ export class EmailProvider extends AuthProvider {
     const db = useDatabaseWithMetadata()
 
     if (userId) {
-      const userPendingDbVerification = (await db
-        .prepare('SELECT * FROM emailVerifications WHERE userId = ? LIMIT 1')
+      // The redirect route is not authenticated, so a pending verification for this user may have been created by
+      // anyone. We replace it instead of blocking the user.
+      await db
+        .prepare('DELETE FROM emailVerifications WHERE userId = ?')
         .bind(userId)
-        .get()) as DbEmailVerification | undefined
-
-      if (userPendingDbVerification) {
-        if (!this.hasExpired(userPendingDbVerification)) {
-          throw new UserHasPendingVerificationError()
-        }
-        await this.deleteVerification(userPendingDbVerification.email, { userId })
-      }
+        .run()
     }
 
     const emailPendingDbVerification = (await db
@@ -139,7 +125,7 @@ export class EmailProvider extends AuthProvider {
 
     if (sendVerificationMail) {
       const generateCode = () => {
-        const alphabet = '0123456789ABCDEFGHIJLMNOPQRSTUVWXYZ'
+        const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         let result = ''
         for (let i = 0; i < 6; i++) {
           result += alphabet[crypto.randomInt(alphabet.length)]
@@ -174,6 +160,9 @@ export class EmailProvider extends AuthProvider {
     const magicLink: URL = new URL('/auth/provider/email/callback', backendConfig.url)
     magicLink.searchParams.append('verificationCode', verificationCode)
     magicLink.searchParams.append('email', email)
+    if (locale) {
+      magicLink.searchParams.append('locale', locale)
+    }
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`Sending email to ${email} with verification code ${verificationCode}...`)
@@ -312,7 +301,8 @@ export class EmailProvider extends AuthProvider {
     const hasAuthorizationExpired = verification.authorizationCodeExpiration !== null && verification.authorizationCodeExpiration < Date.now()
 
     if (!code) {
-      return hasVerificationExpired || hasAuthorizationExpired
+      // Only the current step of the verification matters.
+      return verification.authorizationCode === null ? hasVerificationExpired : hasAuthorizationExpired
     }
 
     return code === 'verification' ? hasVerificationExpired : hasAuthorizationExpired
@@ -379,18 +369,6 @@ interface DbEmailAuthorizationCode {
 class InvalidVerificationCodeError extends AppError {
   constructor() {
     super('Invalid verification code.', InvalidVerificationCodeError, 400)
-  }
-}
-
-class UserHasPendingVerificationError extends AppError {
-  constructor() {
-    super('You already have a pending verification email. Please cancel it first.', UserHasPendingVerificationError, 400)
-  }
-}
-
-class UserNotFoundByIdError extends AppError {
-  constructor() {
-    super(`No user found matching the given identifier.`, UserNotFoundByIdError, 404)
   }
 }
 

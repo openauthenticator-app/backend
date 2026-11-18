@@ -134,7 +134,6 @@ export default definePlugin((nitroApp) => {
   initAndBind(ServerRuntimeClient, {
     dsn,
     environment: process.env.NODE_ENV ?? 'production',
-    tracesSampleRate: 1.0,
     integrations: getIntegrationsToSetup({
       defaultIntegrations: [
         dedupeIntegration(),

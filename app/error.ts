@@ -26,3 +26,9 @@ export class AppError extends HTTPError {
     return name
   }
 }
+
+export class UnauthorizedError extends AppError {
+  constructor() {
+    super('Unauthorized.', UnauthorizedError, 401)
+  }
+}

@@ -1,7 +1,7 @@
 import backendConfig from '~/backend.config'
 import { assert, ErrorObject, SuccessObject } from '~/utils/utils'
 import { isPlainObject } from '~/utils/validation'
-import { AppError, RevenueCatEventHandler } from '~/app'
+import { RevenueCatEventHandler, UnauthorizedError } from '~/app'
 import type { Webhook } from '@puzzmo/revenue-cat-webhook-types'
 import { timingSafeEqual } from 'node:crypto'
 import { defineHandler, type H3Event, readBody } from 'nitro/h3'
@@ -26,9 +26,3 @@ export default defineHandler(async (event: H3Event) => {
   await RevenueCatEventHandler.handle(event, webhook.event)
   return SuccessObject.fromData().toResponse(event)
 })
-
-class UnauthorizedError extends AppError {
-  constructor() {
-    super('Unauthorized.', UnauthorizedError, 401)
-  }
-}

@@ -26,9 +26,9 @@ export class AppleProvider extends OAuthProvider {
     }
   }
 
-  protected override async validateCallbackQueryParameters(event: AppEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string, mode?: 'login' | 'link' }> {
-    const query = await readValidatedBody<H3Event, { code: string, state: string, mode?: 'login' | 'link' }>(event, validator)
-    return { code: query.code, state: query.state, mode: query.mode }
+  protected override async validateCallbackQueryParameters(event: AppEvent, validator: (query: unknown) => boolean): Promise<{ code: string, state: string }> {
+    const query = await readValidatedBody<H3Event, { code: string, state: string }>(event, validator)
+    return { code: query.code, state: query.state }
   }
 
   override async buildRedirectionUrl(state: string): Promise<URL> {
