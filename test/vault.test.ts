@@ -120,6 +120,13 @@ test('two server instances preserve shared vault revisions, legacy entries, quot
   await post(server, '/totps', replacement)
   assert.deepEqual((await pull()).inserts, replacement)
 
+  const edited = ids[0]!
+  const conflicting = { ...record, secret: [8], updatedAt: 20 }
+  await push(server, 'set', { [edited]: conflicting })
+  const reconciliation = await post(other, '/totps/sync/pull', { active: { [edited]: 20 }, deleted: {} })
+  assert.deepEqual(reconciliation.updates[edited], { ...conflicting, updatedAt: 21 })
+  replacement[edited] = reconciliation.updates[edited]
+
   const webhook = (type: string, event_timestamp_ms: number) => post(server, '/webhooks/revenuecat', {
     event: { type, id: String(event_timestamp_ms), event_timestamp_ms, app_user_id: 'owner', entitlement_ids: ['contributor_plan'] },
   }, env.REVENUECAT_AUTHORIZATION_HEADER)

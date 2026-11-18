@@ -37,10 +37,16 @@ export default defineHandler({
         if (tombstone && tombstone.deletedAt >= totp.updatedAt) {
           return ['deletedTotp', 'A TOTP with the same UUID has been deleted more recently.']
         }
-        if (existing && areEncryptedTotpsEqual(existing, totp)) {
-          return null
+        if (existing && existing.updatedAt === totp.updatedAt) {
+          if (areEncryptedTotpsEqual(existing, totp)) return null
+          // Both devices will pull the winning content even if their local clocks agreed to the millisecond.
+          const updatedAt = totp.updatedAt + 1
+          if (!isValidTimestamp(updatedAt)) return ['invalidUpdateTimestamp', 'Cannot advance the stored timestamp.']
+          vault.set(totpUuid, { ...totp, updatedAt })
         }
-        vault.set(totpUuid, totp)
+        else {
+          vault.set(totpUuid, totp)
+        }
         return null
       }
 
