@@ -1,5 +1,5 @@
 import backendConfig from '~/backend.config'
-import { assert } from '~/utils/utils'
+import { assert } from '~/utils/assert'
 import pkg from '~/package.json' with { type: 'json' }
 import { createAuthorizationUrl, exchangeAuthorizationCode, type OAuthTokens } from '~/app/auth/oauth'
 import { InvalidAuthorizationCodeError, OAuthProvider } from '~/app/auth/providers/provider'

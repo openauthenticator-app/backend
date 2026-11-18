@@ -1,6 +1,6 @@
 import { useDatabaseWithMetadata } from '~/utils/db'
-import { schema, tables } from '~/utils/schema'
-import { SuccessObject } from '~/utils/utils'
+import { schema, tables } from '~/app/database/schema'
+import { SuccessObject } from '~/utils/response'
 import { defineHandler, type H3Event } from 'nitro/h3'
 
 export default defineHandler(async (event: H3Event) => {

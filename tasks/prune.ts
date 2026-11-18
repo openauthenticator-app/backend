@@ -1,5 +1,5 @@
-import { SuccessObject } from '~/utils/utils'
-import { EmailProvider, RevenueCatWebhookEventStore, Session, TotpBucket } from '~/app'
+import { SuccessObject } from '~/utils/response'
+import { pruneAll } from '~/app'
 import { defineTask } from 'nitro/task'
 
 export default defineTask({
@@ -8,11 +8,7 @@ export default defineTask({
     description: 'Prune accounts, sessions, email verifications, TOTPs, and RevenueCat webhook events.',
   },
   async run() {
-    await TotpBucket.pruneInactiveAccounts()
-    await Session.pruneExpired()
-    await EmailProvider.pruneExpiredVerifications()
-    await TotpBucket.pruneDeletedTotps()
-    await RevenueCatWebhookEventStore.pruneProcessedEvents()
+    await pruneAll()
     return SuccessObject.fromData().toTaskResult()
   },
 })

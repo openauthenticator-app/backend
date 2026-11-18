@@ -1,4 +1,4 @@
-import { SuccessObject } from '~/utils/utils'
+import { SuccessObject } from '~/utils/response'
 import { RevenueCatWebhookEventStore } from '~/app'
 import { defineHandler, type H3Event, readBody } from 'nitro/h3'
 

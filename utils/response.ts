@@ -1,12 +1,6 @@
 import backendConfig from '~/backend.config'
-import { type H3Event, HTTPError } from 'nitro/h3'
-import { AppError, type User } from '~/app'
-
-export function assert(condition: boolean, error?: HTTPError | string): asserts condition {
-  if (!condition) {
-    throw error instanceof HTTPError ? error : new AppError(error ?? 'Assertion failed.', 'AssertionFailed')
-  }
-}
+import type { H3Event, HTTPError } from 'nitro/h3'
+import { AppError } from '~/app/error'
 
 export interface LocalizedRedirectionURL {
   url: URL | string
@@ -31,10 +25,6 @@ export const sendRedirectResponse = (event: H3Event, url: LocalizedRedirectionUR
     },
   )
 }
-
-export const booleanToNumber = (value: boolean): 0 | 1 => value ? 1 : 0
-
-export const numberToBoolean = (value: number): boolean => value === 1
 
 export class ReturnObject {
   success: boolean
@@ -138,13 +128,5 @@ export class ErrorObject extends ReturnObject {
         message: 'An error occurred while validating your request. You should verify your parameters and the body of your request.',
       },
     })
-  }
-}
-
-declare module 'h3' {
-  interface H3EventContext {
-    user?: User
-    appVersion?: string
-    appClientId?: string
   }
 }

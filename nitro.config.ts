@@ -28,7 +28,7 @@ export default defineConfig({
       prerender: true,
     },
   },
-  errorHandler: './error',
+  errorHandler: './error-handler',
   prerender: {
     routes: ['/'],
   },

@@ -17,7 +17,7 @@ test('two server instances preserve shared vault revisions, legacy entries, quot
   const root = fileURLToPath(new URL('..', import.meta.url))
   const dir = await mkdtemp(join(tmpdir(), 'open-authenticator-test-'))
   t.after(() => rm(dir, { recursive: true, force: true }))
-  for (const name of ['app', 'middleware', 'plugins', 'routes', 'tasks', 'utils', 'error.ts', 'nitro.config.ts', 'backend.config.ts', 'package.json', 'tsconfig.json']) {
+  for (const name of ['app', 'middleware', 'plugins', 'routes', 'tasks', 'utils', 'error-handler.ts', 'nitro.config.ts', 'backend.config.ts', 'package.json', 'tsconfig.json']) {
     await cp(join(root, name), join(dir, name), { recursive: true })
   }
   await symlink(join(root, 'node_modules'), join(dir, 'node_modules'), 'dir')

@@ -1,4 +1,4 @@
-import { SuccessObject } from '~/utils/utils'
+import { SuccessObject } from '~/utils/response'
 import { Session } from '~/app'
 import { defineHandler, type H3Event } from 'nitro/h3'
 

@@ -1,5 +1,6 @@
 import { rateLimit } from '~/utils/ratelimit'
-import { assert, SuccessObject } from '~/utils/utils'
+import { assert } from '~/utils/assert'
+import { SuccessObject } from '~/utils/response'
 import { isValidUUID } from '~/utils/validation'
 import { TotpBucket, type UserEvent, type UUID } from '~/app'
 import { defineHandler, getRouterParam, type H3Event } from 'nitro/h3'

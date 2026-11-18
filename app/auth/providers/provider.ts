@@ -1,7 +1,7 @@
 import backendConfig from '~/backend.config'
-import type { AuthProviderId } from '~/utils/auth'
-import { useUser } from '~/utils/user'
-import type { LocalizedRedirectionURL } from '~/utils/utils'
+import type { AuthProviderId } from '~/app/auth/registry'
+import { useUser } from '~/app/auth/user'
+import type { LocalizedRedirectionURL } from '~/utils/response'
 import { isValidLocale } from '~/utils/validation'
 import { decodeJwt } from 'jose'
 import { generateOAuthSecret, type OAuthTokens } from '~/app/auth/oauth'
@@ -14,7 +14,7 @@ import { deleteCookie, getCookie, getValidatedQuery, type H3Event, readValidated
 export type Mode = 'login' | 'link'
 
 export abstract class AuthProvider {
-  public readonly id: string
+  public readonly id: AuthProviderId
 
   protected constructor(id: AuthProviderId) {
     this.id = id

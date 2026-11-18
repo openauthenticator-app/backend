@@ -1,3 +1,6 @@
+import { useDatabase } from 'nitro/database'
+import { useDatabaseWithMetadata } from '~/utils/db'
+
 export const schemaUpgrade = [
   'CREATE TABLE IF NOT EXISTS totpBucketHeads (userId TEXT PRIMARY KEY, revision TEXT NOT NULL)',
   'CREATE TRIGGER IF NOT EXISTS deleteTotpBucketHead AFTER DELETE ON users BEGIN DELETE FROM totpBucketHeads WHERE userId = OLD.id; END',
@@ -41,3 +44,19 @@ export const schema = [
 ]
 
 export const tables = ['totpBucketHeads', 'users', 'sessions', 'emailVerifications', 'revenueCatWebhookEvents']
+
+let upgraded = false
+
+/** Upgrade initialized installations on first use, including hosts that initialized an older release. */
+export async function ensureSchemaUpgrade() {
+  if (upgraded) return
+  const database = useDatabase()
+  if (['node-sqlite', 'better-sqlite3', 'sqlite3'].includes(database.connector)) {
+    await database.exec('PRAGMA busy_timeout = 5000')
+  }
+  const db = useDatabaseWithMetadata()
+  for (const sql of schemaUpgrade) {
+    if (!(await db.prepare(sql).run()).success) throw new Error('Could not upgrade database schema.')
+  }
+  upgraded = true
+}

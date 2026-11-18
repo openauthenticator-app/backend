@@ -1,13 +1,13 @@
 import backendConfig from '~/backend.config'
-import type { AuthProviderId } from '~/utils/auth'
+import type { AuthProviderId } from '~/app/auth/registry'
 import { generateRandomString } from '~/utils/crypto'
 import { hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
-import { booleanToNumber, numberToBoolean } from '~/utils/utils'
+import { booleanToNumber, numberToBoolean } from '~/utils/db'
 import type { AuthProvider } from '~/app/auth/providers/provider'
 import { TotpBucket } from '~/app/totp'
 
 export type ProviderId = OAuthProviderId | 'email'
-export type OAuthProviderId = `${AuthProviderId}Id`
+export type OAuthProviderId = `${Exclude<AuthProviderId, 'email'>}Id`
 
 export class User {
   public readonly id: string

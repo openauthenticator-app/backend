@@ -1,6 +1,6 @@
-import { useAuthProvider } from '~/utils/auth'
+import { useAuthProvider } from '~/app/auth/registry'
 import { rateLimit } from '~/utils/ratelimit'
-import { SuccessObject } from '~/utils/utils'
+import { SuccessObject } from '~/utils/response'
 import type { AppEvent } from '~/app'
 import { defineHandler, type H3Event } from 'nitro/h3'
 

@@ -1,5 +1,5 @@
 import backendConfig from '~/backend.config'
-import { assert } from '~/utils/utils'
+import { assert } from '~/utils/assert'
 import {
   createAppleClientSecret,
   createAuthorizationUrl,

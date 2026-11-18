@@ -1,7 +1,7 @@
 import backendConfig from '~/backend.config'
 import { generateRandomString, sha256 } from '~/utils/crypto'
 import { hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
-import { assert } from '~/utils/utils'
+import { assert } from '~/utils/assert'
 import ms, { type StringValue } from 'ms'
 import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'

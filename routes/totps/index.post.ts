@@ -1,5 +1,5 @@
 import { rateLimit } from '~/utils/ratelimit'
-import { SuccessObject } from '~/utils/utils'
+import { SuccessObject } from '~/utils/response'
 import { isEncryptedTotp, isPlainObject, isValidUUID } from '~/utils/validation'
 import { type EncryptedTotp, TotpBucket, type UserEvent } from '~/app'
 import { defineHandler, type H3Event, readValidatedBody } from 'nitro/h3'

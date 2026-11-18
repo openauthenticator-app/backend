@@ -1,5 +1,6 @@
 import backendConfig from '~/backend.config'
-import { ensureSchemaUpgrade, useDatabaseWithMetadata } from '~/utils/db'
+import { useDatabaseWithMetadata } from '~/utils/db'
+import { ensureSchemaUpgrade } from '~/app/database/schema'
 import type { Attributes, Webhook } from '@puzzmo/revenue-cat-webhook-types'
 import { AppError } from '~/app/error'
 

@@ -1,6 +1,6 @@
 import backendConfig from '~/backend.config'
 import { useStorage } from 'nitro/storage'
-import { getClientIP, rateLimiter } from '~/app'
+import { getClientIP, rateLimiter } from '~/app/ratelimiter'
 import type { H3Event, Middleware } from 'nitro/h3'
 
 export const buildScopedRateLimitKey = (

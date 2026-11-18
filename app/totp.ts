@@ -1,5 +1,5 @@
-import backendConfig from '~/backend.config'
-import { ensureSchemaUpgrade, hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
+import { hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
+import { ensureSchemaUpgrade } from '~/app/database/schema'
 import type { User } from '~/app/user'
 import { AppError } from '~/app/error'
 import { isValidDigits, isValidPeriod } from '~/utils/validation'
@@ -59,6 +59,11 @@ export class TotpBucket {
     return new TotpBucket(user.id, user.totpsLimit)
   }
 
+  /** Returns the bucket of the given user identifier, without any limit. */
+  static ofUserId(userId: string) {
+    return new TotpBucket(userId)
+  }
+
   private get storage() {
     return useStorage(`totps/${this.userId}`)
   }
@@ -69,7 +74,8 @@ export class TotpBucket {
     return row?.revision ?? null
   }
 
-  private async snapshot(): Promise<{ revision: string | null, data: VaultData }> {
+  /** Returns the current revision and its data. */
+  async snapshot(): Promise<{ revision: string | null, data: VaultData }> {
     for (let attempt = 0; attempt < 8; attempt++) {
       const revision = await this.head()
       if (revision === null) {
@@ -99,6 +105,12 @@ export class TotpBucket {
 
   async read() {
     return (await this.snapshot()).data
+  }
+
+  /** Removes the stored data of the given [revision], and the legacy keys. Used once the user has been deleted. */
+  async removeStorage(revision: string | null) {
+    await this.removeLegacyKeys()
+    if (revision && !revision.startsWith('empty-')) await this.storage.removeItem(`revisions:${revision}`)
   }
 
   private async removeLegacyKeys() {
@@ -160,33 +172,6 @@ export class TotpBucket {
       for (const key of revisions) {
         const revision = key.split(':').at(-1)!
         if (revision !== head && Number(revision.split('-')[0]) < Date.now() - 7 * dayMs) await bucket.storage.removeItem(key)
-      }
-    }
-  }
-
-  static async pruneInactiveAccounts(days?: number) {
-    if (backendConfig.authentication.strategy === 'stateless') {
-      // Sessions are not stored in the database, so we have no way of knowing whether an account is inactive.
-      console.warn('Inactive accounts pruning is not available with the stateless authentication strategy.')
-      return
-    }
-    const db = useDatabaseWithMetadata()
-    const cutoff = Date.now() - (days ?? 0) * dayMs
-    const users = (await db
-      .prepare('SELECT id FROM users WHERE contributorPlan = 0 AND id NOT IN (SELECT userId FROM sessions WHERE expiration > ?)')
-      .bind(cutoff)
-      .all()) as { id: string }[]
-    for (const { id } of users) {
-      const bucket = new TotpBucket(id)
-      const { revision, data } = await bucket.snapshot()
-      if (Object.keys(data.active).length) continue
-      const deleted = await db.prepare(`DELETE FROM users WHERE id = ? AND contributorPlan = 0
-        AND NOT EXISTS (SELECT 1 FROM sessions WHERE userId = users.id AND expiration > ?)
-        AND (SELECT revision FROM totpBucketHeads WHERE userId = users.id) IS ?`)
-        .bind(id, cutoff, revision).run()
-      if (hasExactlyOneChange(deleted)) {
-        await bucket.removeLegacyKeys()
-        if (revision && !revision.startsWith('empty-')) await bucket.storage.removeItem(`revisions:${revision}`)
       }
     }
   }
