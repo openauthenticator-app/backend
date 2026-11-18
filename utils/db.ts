@@ -26,9 +26,10 @@ const runWithMetadata = async (db: Database, sql: string, params: Primitive[]): 
     throw new Error(`Invalid SQL binding count: expected ${parts.length - 1} parameter(s), got ${params.length}. SQL: ${sql}`)
   }
   const strings = Object.assign([...parts], { raw: [...parts] }) as unknown as TemplateStringsArray
-  const result = await db.sql(strings, ...params)
+  const result = await db.sql<{ changes?: number, meta?: { changes?: number }, success?: boolean }>(strings, ...params)
   return {
-    changes: result.changes,
+    // Cloudflare D1 reports the number of changed rows in `meta`.
+    changes: result.changes ?? result.meta?.changes,
     success: result.success === true,
   }
 }
