@@ -2,7 +2,7 @@ import { hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
 import { ensureSchemaUpgrade } from '~/app/database/schema'
 import type { User } from '~/app/user'
 import { AppError } from '~/app/error'
-import { isValidDigits, isValidPeriod } from '~/utils/validation'
+import { dropUnsupportedParameters } from '~/utils/validation'
 import { useStorage } from 'nitro/storage'
 
 export type UUID = `${string}-${string}-${string}-${string}-${string}`
@@ -104,6 +104,21 @@ export class TotpBucket {
 
   async read() {
     return (await this.snapshot()).data
+  }
+
+  /**
+   * Converts the legacy per-TOTP keys to a revision, instead of waiting for the next write.
+   * Returns whether a conversion happened.
+   */
+  async convertLegacyKeys() {
+    const { revision, data } = await this.snapshot()
+    if (revision !== null || (!Object.keys(data.active).length && !Object.keys(data.deleted).length)) {
+      return false
+    }
+    await this.edit((vault) => {
+      vault.changed = true
+    })
+    return true
   }
 
   /** Removes the stored data of the given [revision], and the legacy keys. Used once the user has been deleted. */
