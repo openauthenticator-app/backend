@@ -5,7 +5,7 @@ import type { CookieSerializeOptions } from '~/app/auth/providers/provider'
 import type { MailerLibrary, MailerOptions } from '~/app/email'
 import type { RateLimitAlgorithm } from '~/app/ratelimiter'
 import 'dotenv/config'
-import { escapeHtml } from '~/utils/html'
+import { escapeHtml } from '../utils/html'
 
 export interface BackendConfig {
   url: string

@@ -4,18 +4,18 @@ import { getClientIP, rateLimiter } from '~/app'
 import type { H3Event, Middleware } from 'nitro/h3'
 
 export const buildScopedRateLimitKey = (
-  clientIp: string,
-  pathname: string,
+  event: H3Event,
   ...identifiers: Array<string | null | undefined>
 ) => {
   const normalizedIdentifiers = identifiers
     .map(identifier => identifier?.trim().toLowerCase())
     .filter((identifier): identifier is string => !!identifier)
 
-  return [clientIp, pathname, ...normalizedIdentifiers].join(':')
+  // Routes sharing the same path (eg. `GET /user` and `DELETE /user`) have different limits, so the method is part of the key.
+  return [getClientIP(event), event.req.method, event.url.pathname, ...normalizedIdentifiers].join(':')
 }
 
-const defaultKeyGenerator = (event: H3Event) => buildScopedRateLimitKey(getClientIP(event), event.url.pathname)
+const defaultKeyGenerator = (event: H3Event) => buildScopedRateLimitKey(event)
 
 export const rateLimit = (
   options: {

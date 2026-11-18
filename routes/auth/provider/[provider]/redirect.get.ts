@@ -2,7 +2,7 @@ import { useAuthProvider } from '~/utils/auth'
 import { buildScopedRateLimitKey, rateLimit } from '~/utils/ratelimit'
 import { sendRedirectResponse } from '~/utils/utils'
 import { defineHandler, getRouterParam, type H3Event } from 'nitro/h3'
-import { type AppEvent, getClientIP } from '~/app'
+import type { AppEvent } from '~/app'
 
 export default defineHandler({
   middleware: [
@@ -12,10 +12,10 @@ export default defineHandler({
       keyGenerator: (event: H3Event) => {
         const provider = getRouterParam(event, 'provider') ?? 'unknown'
         if (provider !== 'email') {
-          return buildScopedRateLimitKey(getClientIP(event), event.url.pathname)
+          return buildScopedRateLimitKey(event)
         }
         const email = event.url.searchParams.get('email')?.trim().toLowerCase() ?? 'unknown'
-        return buildScopedRateLimitKey(getClientIP(event), event.url.pathname, email)
+        return buildScopedRateLimitKey(event, email)
       },
     }),
   ],
