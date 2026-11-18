@@ -83,7 +83,6 @@ export default defineBackendConfig({
     database: {
       connector: 'cloudflare-d1',
       options: {
-        // @ts-expect-error `bindingName` is not in the type definition.
         bindingName: 'DATABASE',
       },
     },
