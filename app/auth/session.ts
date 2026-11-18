@@ -7,7 +7,6 @@ import type { AppEvent } from '~/app/event'
 import { AppError } from '~/app/error'
 import { jwtVerify, SignJWT } from 'jose'
 import { JWTExpired } from 'jose/errors'
-import type { Database } from 'db0'
 
 type TokenKind = 'access' | 'refresh'
 
@@ -23,7 +22,7 @@ export class Session {
   }
 
   public static async pruneExpired() {
-    const db: Database = useDatabaseWithMetadata()
+    const db = useDatabaseWithMetadata()
     const result = await db
       .prepare('DELETE FROM sessions WHERE expiration < ?')
       .bind(Date.now())

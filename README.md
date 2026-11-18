@@ -158,7 +158,7 @@ Please refer to [the default config](https://github.com/openauthenticator-app/ba
 
 ### Populate, reset and prune data
 
-To (re)create the default tables, send a `POST` request to `/admin/reset` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To prune unnecessary data, send a `POST` request to `/admin/prune`. You can also prune only one category with `/admin/prune/accounts`, `/admin/prune/sessions`, `/admin/prune/email-verifications`, `/admin/prune/totps`, or `/admin/prune/revenuecat`.
+To create the missing tables and indexes without touching existing data, send a `POST` request to `/admin/init` with your previously defined `ADMIN_HEADER` set as the `Authorization` header. To drop and recreate all tables, use `/admin/reset` instead. To prune unnecessary data, send a `POST` request to `/admin/prune`. You can also prune only one category with `/admin/prune/accounts`, `/admin/prune/sessions`, `/admin/prune/email-verifications`, `/admin/prune/totps`, or `/admin/prune/revenuecat`.
 
 ## Behind the scenes
 
@@ -194,6 +194,7 @@ These headers are required for `/auth/*`, `/totps/*`, `/user/*`, and `/ping`, ex
 | `/totps/:uuid`                      | `DELETE` | Deletes one encrypted TOTP and stores a tombstone for sync.                                                                                                                  | Bearer access token                                              |
 | `/totps/sync/pull`                  | `POST`   | Returns inserts, updates, and deletes newer than the client-known timestamps.                                                                                                | Bearer access token                                              |
 | `/totps/sync/push`                  | `POST`   | Applies compacted client sync operations with timestamp conflict checks.                                                                                                     | Bearer access token                                              |
+| `/admin/init`                       | `POST`   | Creates the missing database tables and indexes.                                                                                                                             | `adminHeader`                                                    |
 | `/admin/reset`                      | `POST`   | Drops and recreates database tables and indexes.                                                                                                                             | `adminHeader`                                                    |
 | `/admin/prune`                      | `POST`   | Prunes inactive accounts, expired sessions, expired email verifications, deleted TOTP tombstones, and processed RevenueCat webhook events.                                     | `adminHeader`                                                    |
 | `/admin/prune/accounts`             | `POST`   | Prunes inactive non-contributor accounts. Accepts an optional `days` value in the JSON body.                                                                                 | `adminHeader`                                                    |
