@@ -4,6 +4,9 @@ export const isPlainObject = (object: unknown): object is Record<string, unknown
 
 export const isValidTimestamp = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && Math.abs(value) <= 8640000000000000
 
+export const isValidDigits = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value >= 4 && value <= 15
+export const isValidPeriod = (value: unknown) => typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 2147483647
+
 export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if (!isPlainObject(object)) {
     return false
@@ -11,10 +14,10 @@ export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if ('algorithm' in object && (typeof object.algorithm !== 'string' || !['SHA1', 'SHA256', 'SHA512'].includes(object.algorithm))) {
     return false
   }
-  if ('digits' in object && !(typeof object.digits === 'number' && Number.isInteger(object.digits) && object.digits >= 4 && object.digits <= 15)) {
+  if ('digits' in object && !isValidDigits(object.digits)) {
     return false
   }
-  if ('validity' in object && !(typeof object.validity === 'number' && Number.isInteger(object.validity) && object.validity > 0 && object.validity <= 2147483647)) {
+  if ('validity' in object && !isValidPeriod(object.validity)) {
     return false
   }
   if (!isValidTimestamp(object.updatedAt)) {

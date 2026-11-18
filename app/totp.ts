@@ -2,6 +2,7 @@ import backendConfig from '~/backend.config'
 import { ensureSchemaUpgrade, hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
 import type { User } from '~/app/user'
 import { AppError } from '~/app/error'
+import { isValidDigits, isValidPeriod } from '~/utils/validation'
 import { useStorage } from 'nitro/storage'
 
 export type UUID = `${string}-${string}-${string}-${string}-${string}`
@@ -77,6 +78,11 @@ export class TotpBucket {
         const data: VaultData = {
           active: storageObjectsToRecord(await active.getItems(await active.getKeys())),
           deleted: storageObjectsToRecord(await deleted.getItems(await deleted.getKeys())),
+        }
+        for (const record of Object.values(data.active)) {
+          // Older servers accepted generation parameters outside the generator's range.
+          if (!isValidDigits(record.digits)) delete record.digits
+          if (!isValidPeriod(record.validity)) delete record.validity
         }
         if (await this.head() === null) return { revision, data }
       }

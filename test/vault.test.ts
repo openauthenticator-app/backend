@@ -95,10 +95,11 @@ test('two server instances preserve shared vault revisions, legacy entries, quot
   db.prepare('INSERT INTO users (id) VALUES (?)').run('owner')
   const legacy = crypto.randomUUID()
   const record = { updatedAt: 0, secret: [1], encryptionSalt: [2] }
+  const legacyRecord = { ...record, digits: 0, validity: 0 }
   for (const owner of ['owner', 'neighbor']) {
     const path = join(dir, '.data/totps', owner, 'totps')
     await mkdir(path, { recursive: true })
-    await writeFile(join(path, legacy), JSON.stringify(record))
+    await writeFile(join(path, legacy), JSON.stringify(legacyRecord))
   }
   const pull = () => post(other, '/totps/sync/pull', { active: {}, deleted: {} })
   assert.deepEqual((await pull()).inserts[legacy], record)
@@ -109,7 +110,7 @@ test('two server instances preserve shared vault revisions, legacy entries, quot
   assert.equal(results.filter(result => result.errorCode === 'tooManyTotps').length, 1)
   assert.equal(results.filter(result => result.errorCode === null).length, 5)
   assert.equal(Object.keys((await pull()).inserts).length, 6)
-  assert.deepEqual(await readFile(join(dir, '.data/totps/neighbor/totps', legacy), 'utf8'), JSON.stringify(record))
+  assert.deepEqual(await readFile(join(dir, '.data/totps/neighbor/totps', legacy), 'utf8'), JSON.stringify(legacyRecord))
 
   await Promise.all([push(server, 'set', { [legacy]: { ...record, updatedAt: 10 } }), push(other, 'delete', { [legacy]: 11 })])
   const afterDelete = await pull()
