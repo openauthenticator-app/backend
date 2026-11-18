@@ -5,9 +5,12 @@ import type {
   Webhook,
   WebhookExpiration,
   WebhookInitialPurchase,
+  WebhookNonRenewingPurchase,
   WebhookRenewal,
+  WebhookSubscriptionExtended,
   WebhookTemporaryEntitlementGrant,
   WebhookTransfer,
+  WebhookUnCancellation,
 } from '@puzzmo/revenue-cat-webhook-types'
 import type { H3Event } from 'nitro/h3'
 import { AppError } from '~/app/error'
@@ -34,6 +37,15 @@ export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
         break
       case 'RENEWAL':
         handler = new RenewalHandler()
+        break
+      case 'NON_RENEWING_PURCHASE':
+        handler = new NonRenewingPurchaseHandler()
+        break
+      case 'SUBSCRIPTION_EXTENDED':
+        handler = new SubscriptionExtendedHandler()
+        break
+      case 'UNCANCELLATION':
+        handler = new UnCancellationHandler()
         break
       case 'EXPIRATION':
         handler = new ExpirationHandler()
@@ -88,6 +100,24 @@ class InitialPurchaseHandler extends ContributorPlanHandler<WebhookInitialPurcha
 }
 
 class RenewalHandler extends ContributorPlanHandler<WebhookRenewal> {
+  constructor() {
+    super(true)
+  }
+}
+
+class NonRenewingPurchaseHandler extends ContributorPlanHandler<WebhookNonRenewingPurchase> {
+  constructor() {
+    super(true)
+  }
+}
+
+class SubscriptionExtendedHandler extends ContributorPlanHandler<WebhookSubscriptionExtended> {
+  constructor() {
+    super(true)
+  }
+}
+
+class UnCancellationHandler extends ContributorPlanHandler<WebhookUnCancellation> {
   constructor() {
     super(true)
   }
