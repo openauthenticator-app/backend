@@ -155,9 +155,7 @@ Please refer to [the default config](https://github.com/openauthenticator-app/ba
 > [!NOTE]
 > Don't forget to rebuild the server after each configuration change.
 
-For Node deployments, persist the `.data` directory across restarts. When upgrading an existing server, stop older instances before serving writes with the new version. The first vault access or subscription update adds the revision index and subscription trigger to an initialized database. You can also run the idempotent `POST /admin/init` during the upgrade. All replicas must share the same SQL database and TOTP storage. Back up and restore both together.
-
-The server reads existing per-TOTP storage keys until the first successful write for that user. Subsequent writes publish an immutable encrypted vault revision in the same configured storage and conditionally advance its SQL pointer. Concurrent edits are re-evaluated against the current revision. After this conversion, rolling back the server requires restoring the matching pre-upgrade backup.
+For Node deployments using the default storage, persist the `.data` directory across restarts. If you run multiple server instances, configure them to share the same SQL database and TOTP storage. Back up both stores together.
 
 ### Populate, reset and prune data
 
