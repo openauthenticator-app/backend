@@ -5,25 +5,22 @@ import semver from 'semver'
 
 export const requireAppVersionHeader = (
   event: H3Event,
-  options: {
+  { addToContext = true, validate = true }: {
     addToContext?: boolean
     validate?: boolean
-  } = {
-    addToContext: true,
-    validate: true,
-  },
+  } = {},
 ) => {
   const appVersion = event.req.headers.get('App-Version')
   if (!appVersion) {
     throw new MissingHeaderError('App-Version')
   }
-  if (options.validate) {
+  if (validate) {
     const message = validateAppVersion(appVersion)
     if (message) {
       throw new InvalidAppVersionError(message)
     }
   }
-  if (options.addToContext) {
+  if (addToContext) {
     event.context.appVersion = appVersion
   }
   return appVersion
@@ -45,17 +42,15 @@ function validateAppVersion(appVersion: string): string | null {
 
 export const requireAppClientId = (
   event: H3Event,
-  options: {
+  { addToContext = true }: {
     addToContext?: boolean
-  } = {
-    addToContext: true,
-  },
+  } = {},
 ) => {
   const appClientId = event.req.headers.get('App-Client-Id')
   if (!appClientId) {
     throw new MissingHeaderError('App-Client-Id')
   }
-  if (options.addToContext) {
+  if (addToContext) {
     event.context.appClientId = appClientId
   }
   return appClientId
