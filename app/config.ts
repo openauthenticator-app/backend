@@ -5,6 +5,7 @@ import type { CookieSerializeOptions } from '~/app/auth/providers/provider'
 import type { MailerLibrary, MailerOptions } from '~/app/email'
 import type { RateLimitAlgorithm } from '~/app/ratelimiter'
 import 'dotenv/config'
+import { escapeHtml } from '~/utils/html'
 
 export interface BackendConfig {
   url: string
@@ -75,20 +76,21 @@ export default {
   enableRegistrations: true,
   adminHeader: process.env.ADMIN_HEADER,
   redirectionPageBuilder: (url: URL | string) => {
-    const escapedUrl = JSON.stringify(url)
+    const htmlUrl = escapeHtml(url.toString())
+    const jsUrl = JSON.stringify(url.toString()).replaceAll('<', '\\u003c')
     return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="refresh" content="0; url=${escapedUrl}" />
+  <meta http-equiv="refresh" content="0; url=${htmlUrl}" />
   <title>Open Authenticator</title>
-  <script>window.location.href = ${escapedUrl};</script>
+  <script>window.location.href = ${jsUrl};</script>
 </head>
 <body>
   <p>
     Redirecting you to the Open Authenticator app...
-    Please click <a href=${escapedUrl}>here</a> if you're not being redirected.
+    Please click <a href="${htmlUrl}">here</a> if you're not being redirected.
   </p>
 </body>
 </html>`
@@ -169,7 +171,7 @@ export default {
   <strong>${verificationCode}</strong> in the application or click the link below :
 </p>
 <p>
-  &gt; <a href="${magicLink}">${magicLink}</a>
+  &gt; <a href="${escapeHtml(magicLink)}">${escapeHtml(magicLink)}</a>
 </p>
 <p>
   If you haven't asked to log in, you can safely ignore this email.

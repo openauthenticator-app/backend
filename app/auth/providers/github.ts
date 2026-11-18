@@ -2,7 +2,7 @@ import backendConfig from '~/backend.config'
 import { assert } from '~/utils/utils'
 import pkg from '~/package.json' with { type: 'json' }
 import { createAuthorizationUrl, exchangeAuthorizationCode, type OAuthTokens } from '~/app/auth/oauth'
-import { OAuthProvider } from '~/app/auth/providers/provider'
+import { InvalidAuthorizationCodeError, OAuthProvider } from '~/app/auth/providers/provider'
 import { fetch } from 'nitro'
 
 export class GithubProvider extends OAuthProvider {
@@ -37,9 +37,9 @@ export class GithubProvider extends OAuthProvider {
       },
     )
 
-    const githubUser = await response.json() as {
-      id: number
-      email: string | null
+    const githubUser: unknown = await response.json().catch(() => null)
+    if (!response.ok || !githubUser || typeof githubUser !== 'object' || !('id' in githubUser) || typeof githubUser.id !== 'number') {
+      throw new InvalidAuthorizationCodeError()
     }
     return {
       id: githubUser.id.toString(),

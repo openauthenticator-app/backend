@@ -251,7 +251,7 @@ class SessionCreationError extends AppError {
 
 class InvalidSessionError extends AppError {
   constructor() {
-    super('Invalid session.', InvalidSessionError)
+    super('Invalid session.', InvalidSessionError, 401)
   }
 }
 

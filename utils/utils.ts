@@ -132,8 +132,8 @@ export class ErrorObject extends ReturnObject {
 
   static validationError(): ErrorObject {
     return new ErrorObject({
+      status: 400,
       data: {
-        status: 400,
         errorCode: 'validation',
         message: 'An error occurred while validating your request. You should verify your parameters and the body of your request.',
       },

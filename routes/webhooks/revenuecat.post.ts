@@ -1,5 +1,6 @@
 import backendConfig from '~/backend.config'
 import { assert, ErrorObject, SuccessObject } from '~/utils/utils'
+import { isPlainObject } from '~/utils/validation'
 import { AppError, RevenueCatEventHandler } from '~/app'
 import type { Webhook } from '@puzzmo/revenue-cat-webhook-types'
 import { timingSafeEqual } from 'node:crypto'
@@ -17,8 +18,8 @@ export default defineHandler(async (event: H3Event) => {
     throw new UnauthorizedError()
   }
 
-  const webhook: Webhook | undefined = await readBody<Webhook>(event)
-  if (!webhook) {
+  const webhook = await readBody<Webhook>(event)
+  if (!isPlainObject(webhook) || !isPlainObject(webhook.event) || typeof webhook.event.type !== 'string' || typeof webhook.event.event_timestamp_ms !== 'number') {
     return ErrorObject.validationError().toResponse(event)
   }
 
