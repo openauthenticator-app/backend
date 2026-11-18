@@ -4,7 +4,7 @@ import {
   createAppleClientSecret,
   createAuthorizationUrl,
   exchangeAuthorizationCode,
-  type OAuthTokens
+  type OAuthTokens,
 } from '~/app/auth/oauth'
 import { type CookieSerializeOptions, OAuthProvider } from '~/app/auth/providers/provider'
 import type { AppEvent } from '~/app/event'

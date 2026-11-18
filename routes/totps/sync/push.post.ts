@@ -106,7 +106,7 @@ export default defineHandler({
                 })
                 continue
               }
-              if (!existing || !areEncryptedTotpsEqual(existing, (totp as EncryptedTotp))) {
+              if (!existing || !areEncryptedTotpsEqual(existing, totp as EncryptedTotp)) {
                 await bucket.set(totpUuid as UUID, totp as EncryptedTotp)
               }
               results.push({

@@ -1,7 +1,6 @@
 import type { StringValue } from 'ms'
 import type { Range } from 'semver'
-import type { BuiltinDriverName, BuiltinDriverOptions } from 'unstorage'
-import type { DatabaseConnectionConfig } from 'nitro/types'
+import type { DatabaseConnectionConfig, KVMount } from 'nitro/types'
 import type { CookieSerializeOptions } from '~/app/auth/providers/provider'
 import type { MailerLibrary, MailerOptions } from '~/app/email'
 import type { RateLimitAlgorithm } from '~/app/ratelimiter'
@@ -14,10 +13,7 @@ export interface BackendConfig {
   adminHeader?: string
   redirectionPageBuilder: (url: URL | string, locale?: string) => string
   totps: {
-    storage: {
-      // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
-      [K in BuiltinDriverName]: { driver: K } & BuiltinDriverOptions[K];
-    }[BuiltinDriverName]
+    storage: KVMount
     limit: {
       default: number
       contributor: number
@@ -69,10 +65,7 @@ export interface BackendConfig {
   rateLimiter: {
     enable: boolean
     algorithm: RateLimitAlgorithm
-    storage: {
-      // @ts-expect-error `K` is a driver name, and therefore can be used to index `BuiltinDriverOptions`.
-      [K in BuiltinDriverName]: { driver: K } & BuiltinDriverOptions[K];
-    }[BuiltinDriverName]
+    storage: KVMount
   }
 }
 
