@@ -61,7 +61,7 @@ export default defineHandler({
     for (const [uuid, tombstone] of Object.entries(tombstones)) {
       const clientKnownAt = Math.max(body.active[uuid as UUID] ?? 0, body.deleted[uuid as UUID] ?? 0)
       if (tombstone.deletedAt > clientKnownAt) {
-        deletes[uuid as UUID] = tombstones[uuid as UUID].deletedAt
+        deletes[uuid as UUID] = tombstone.deletedAt
       }
     }
 

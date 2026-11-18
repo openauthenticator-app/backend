@@ -1,3 +1,4 @@
+import backendConfig from '~/backend.config'
 import { useDatabaseWithMetadata } from '~/utils/db'
 import type { Storage } from 'unstorage'
 import { User } from '~/app/user'
@@ -11,23 +12,21 @@ interface StorageObject<K extends string, V> {
 
 export type UUID = `${string}-${string}-${string}-${string}-${string}`
 
+const dayMs = 24 * 60 * 60 * 1000
+
 export class TotpBucket {
   private readonly storage: Storage<EncryptedTotp>
   private readonly deletedStorage: Storage<TotpTombstone>
-  private readonly limit: number | undefined
+  public readonly limit: number | undefined
 
-  private constructor(
-    storage: Storage<EncryptedTotp>,
-    deletedStorage: Storage<TotpTombstone>,
-    limit?: number,
-  ) {
-    this.storage = storage
-    this.deletedStorage = deletedStorage
+  private constructor(userId: string, limit?: number) {
+    this.storage = useStorage<EncryptedTotp>(`totps/${userId}/totps`)
+    this.deletedStorage = useStorage<TotpTombstone>(`totps/${userId}/deleted`)
     this.limit = limit
   }
 
   static of(user: User) {
-    return new TotpBucket(useStorage<EncryptedTotp>(`totps/${user.id}/totps`), useStorage<TotpTombstone>(`totps/${user.id}/deleted`), user.totpsLimit)
+    return new TotpBucket(user.id, user.totpsLimit)
   }
 
   static async pruneDeletedTotps(days?: number) {
@@ -40,38 +39,31 @@ export class TotpBucket {
     )
 
     for (const user of users) {
-      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${user}/totps`), useStorage<TotpTombstone>(`totps/${user}/deleted`))
-      await bucket.prune(days)
+      await new TotpBucket(user).prune(days)
     }
   }
 
   static async pruneInactiveAccounts(days?: number) {
+    if (backendConfig.authentication.strategy === 'stateless') {
+      // Sessions are not stored in the database, so we have no way of knowing whether an account is inactive.
+      console.warn('Inactive accounts pruning is not available with the stateless authentication strategy.')
+      return
+    }
     const db = useDatabaseWithMetadata()
-    const ids = (await db.prepare('SELECT * FROM users WHERE contributorPlan = 0')
+    const cutoff = Date.now() - (days ?? 0) * dayMs
+    const users = (await db
+      .prepare('SELECT id FROM users WHERE contributorPlan = 0 AND id NOT IN (SELECT userId FROM sessions WHERE expiration > ?)')
+      .bind(cutoff)
       .all()) as { id: string }[]
-    const cutoff = Date.now() - (days ?? 0) * 24 * 60 * 60 * 1000
-    for (const { id } of ids) {
-      const sessions = (await db.prepare('SELECT sessionId FROM sessions WHERE userId = ? AND expiration > ?')
-        .bind(id, cutoff)
-        .all()) as { sessionId: string }[]
-      if (sessions.length > 0) {
-        continue
-      }
-      const bucket = new TotpBucket(useStorage<EncryptedTotp>(`totps/${id}/totps`), useStorage<TotpTombstone>(`totps/${id}/deleted`))
-      const keys = await bucket.storage.getKeys()
-      if (keys.length > 0) {
+    for (const { id } of users) {
+      const bucket = new TotpBucket(id)
+      if ((await bucket.storage.getKeys()).length > 0) {
         continue
       }
       await bucket.clear(true)
-      await db.prepare('DELETE FROM users WHERE id = ?')
-        .bind(id)
-        .run()
-      await db.prepare('DELETE FROM sessions WHERE userId = ?')
-        .bind(id)
-        .run()
-      await db.prepare('DELETE FROM emailVerifications WHERE userId = ?')
-        .bind(id)
-        .run()
+      await db.prepare('DELETE FROM sessions WHERE userId = ?').bind(id).run()
+      await db.prepare('DELETE FROM emailVerifications WHERE userId = ?').bind(id).run()
+      await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
     }
   }
 
@@ -83,11 +75,10 @@ export class TotpBucket {
     return this.storage.getItem(uuid)
   }
 
-  public async set(uuid: UUID, record: EncryptedTotp) {
-    const add = !await this.storage.hasItem(uuid)
-    if (add) {
-      const keys = await this.storage.getKeys()
-      if (this.limit && keys.length >= this.limit) {
+  public async set(uuid: UUID, record: EncryptedTotp, bypassLimit: boolean = false) {
+    if (this.limit && !bypassLimit && !await this.storage.hasItem(uuid)) {
+      const count = (await this.storage.getKeys()).length
+      if (count >= this.limit) {
         throw new TooManyTotpsError()
       }
     }
@@ -100,25 +91,22 @@ export class TotpBucket {
     await this.deletedStorage.setItem(uuid, { deletedAt: deletedAt ?? Date.now() })
   }
 
-  public async getAll() {
+  public async getAll(): Promise<Record<UUID, EncryptedTotp>> {
     const uuids = await this.storage.getKeys()
-    return this.storageObjectsToRecord(await this.storage.getItems(uuids))
+    return storageObjectsToRecord(await this.storage.getItems(uuids))
   }
 
   public async setAll(record: Record<UUID, EncryptedTotp>, bypassLimit: boolean = false) {
-    const existingKeys = await this.storage.getKeys()
     const keysToSet = Object.keys(record)
-    if (this.limit && !bypassLimit) {
-      const intersection = [...existingKeys].filter(keysToSet.includes).length
-      const newKeys = keysToSet.length - intersection
-      if (existingKeys.length + newKeys > this.limit) {
-        throw new TooManyTotpsError()
-      }
+    // The whole bucket is replaced, so only the new keys count toward the limit.
+    if (this.limit && !bypassLimit && keysToSet.length > this.limit) {
+      throw new TooManyTotpsError()
     }
-    await this.storage.setItems(this.recordToStorageObjects(record))
-    const deletedKeys = existingKeys.filter(key => !keysToSet.includes(key))
+    const keysToSetSet = new Set(keysToSet)
+    const deletedKeys = (await this.storage.getKeys()).filter(key => !keysToSetSet.has(key))
+    await this.storage.setItems(keysToSet.map(key => ({ key, value: record[key as UUID]! })))
     await Promise.all(deletedKeys.map(key => this.storage.removeItem(key)))
-    await this.deletedStorage.setItems(this.keysToTombstonesStorageObjects(deletedKeys))
+    await this.deletedStorage.setItems(keysToTombstonesStorageObjects(deletedKeys))
     await Promise.all(keysToSet.map(key => this.deletedStorage.removeItem(key)))
   }
 
@@ -129,58 +117,39 @@ export class TotpBucket {
       await this.deletedStorage.clear()
     }
     else {
-      await this.deletedStorage.setItems(this.keysToTombstonesStorageObjects(existingKeys))
+      await this.deletedStorage.setItems(keysToTombstonesStorageObjects(existingKeys))
     }
-  }
-
-  public async getTombstone(uuid: UUID) {
-    return this.deletedStorage.get(uuid)
   }
 
   public async getTombstones(): Promise<Record<UUID, TotpTombstone>> {
-    const result: Record<UUID, TotpTombstone> = {}
     const uuids = await this.deletedStorage.getKeys()
-    for (const uuid of uuids) {
-      result[uuid as UUID] = (await this.deletedStorage.getItem(uuid))!
-    }
-    return result
+    return storageObjectsToRecord(await this.deletedStorage.getItems(uuids))
   }
 
   private async prune(days?: number) {
-    const now = Date.now()
-    const deletedKeys = await this.deletedStorage.getKeys()
-
-    for (const key of deletedKeys) {
-      const deleted = (await this.deletedStorage.getItem(key))!
-      if (now - deleted.deletedAt > (days ?? 365) * 24 * 60 * 60 * 1000) {
-        await this.deletedStorage.removeItem(key)
-      }
-    }
-  }
-
-  private keysToTombstonesStorageObjects(keys: string[]): StorageObject<string, TotpTombstone>[] {
-    return keys.map(key => ({ key, value: { deletedAt: Date.now() } }))
-  }
-
-  private recordToStorageObjects(record: Record<UUID, EncryptedTotp>): StorageObject<string, EncryptedTotp>[] {
-    const keys = Object.keys(record)
-    return keys.map((key) => {
-      return {
-        key,
-        value: record[key as UUID]!,
-      }
-    })
-  }
-
-  private storageObjectsToRecord(storageObjects: StorageObject<string, EncryptedTotp>[]) {
-    return storageObjects.reduce(
-      (record, { key, value }) => {
-        record[key as UUID] = value
-        return record
-      },
-      {} as Record<UUID, EncryptedTotp>,
+    const cutoff = Date.now() - (days ?? 365) * dayMs
+    const tombstones = await this.getTombstones()
+    await Promise.all(
+      Object.entries(tombstones)
+        .filter(([, tombstone]) => tombstone.deletedAt < cutoff)
+        .map(([key]) => this.deletedStorage.removeItem(key)),
     )
   }
+}
+
+const keysToTombstonesStorageObjects = (keys: string[]): StorageObject<string, TotpTombstone>[] => {
+  const deletedAt = Date.now()
+  return keys.map(key => ({ key, value: { deletedAt } }))
+}
+
+const storageObjectsToRecord = <V>(storageObjects: { key: string, value: unknown }[]): Record<UUID, V> => {
+  const record: Record<UUID, V> = {}
+  for (const { key, value } of storageObjects) {
+    if (value !== null && value !== undefined) {
+      record[key as UUID] = value as V
+    }
+  }
+  return record
 }
 
 export type Algorithm = 'SHA1' | 'SHA256' | 'SHA512'
@@ -203,16 +172,10 @@ export interface EncryptedTotp {
 
 export const areEncryptedTotpsEqual = (a: EncryptedTotp, b: EncryptedTotp): boolean => {
   const areUint8ArrayEqual = (a: Uint8Array | undefined, b: Uint8Array | undefined): boolean => {
-    if (typeof a === 'undefined') {
-      return typeof b === 'undefined'
+    if (a === undefined || b === undefined) {
+      return a === b
     }
-    if (typeof b === 'undefined') {
-      return false
-    }
-    if (a.length !== b.length) {
-      return false
-    }
-    return a.every((value, index) => value === b[index])
+    return a.length === b.length && a.every((value, index) => value === b[index])
   }
   return a.algorithm === b.algorithm
     && a.digits === b.digits
@@ -225,7 +188,7 @@ export const areEncryptedTotpsEqual = (a: EncryptedTotp, b: EncryptedTotp): bool
     && a.updatedAt === b.updatedAt
 }
 
-class TooManyTotpsError extends AppError {
+export class TooManyTotpsError extends AppError {
   constructor() {
     super('Too many TOTPs.', TooManyTotpsError, 403)
   }

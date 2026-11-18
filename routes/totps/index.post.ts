@@ -1,25 +1,11 @@
 import { rateLimit } from '~/utils/ratelimit'
 import { SuccessObject } from '~/utils/utils'
-import { isEncryptedTotp, isValidUUID } from '~/utils/validation'
+import { isEncryptedTotp, isPlainObject, isValidUUID } from '~/utils/validation'
 import { type EncryptedTotp, TotpBucket, type UserEvent } from '~/app'
 import { defineHandler, type H3Event, readValidatedBody } from 'nitro/h3'
 
-const validateBody = (body: unknown) => {
-  if (!body || typeof body !== 'object') {
-    return false
-  }
-  for (const uuid in body) {
-    if (!isValidUUID(uuid)) {
-      return false
-    }
-    // @ts-expect-error Expected any here.
-    const encryptedTotp = body[uuid]
-    if (!isEncryptedTotp(encryptedTotp)) {
-      return false
-    }
-  }
-  return true
-}
+const validateBody = (body: unknown) => isPlainObject(body)
+  && Object.entries(body).every(([uuid, encryptedTotp]) => isValidUUID(uuid) && isEncryptedTotp(encryptedTotp))
 
 export default defineHandler({
   middleware: [rateLimit({ limit: 5 })],

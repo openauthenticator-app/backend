@@ -1,5 +1,9 @@
-export const isEncryptedTotp = (object: unknown) => {
-  if (!object || typeof object !== 'object') {
+import type { EncryptedTotp } from '~/app/totp'
+
+export const isPlainObject = (object: unknown): object is Record<string, unknown> => !!object && typeof object === 'object' && !Array.isArray(object)
+
+export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
+  if (!isPlainObject(object)) {
     return false
   }
   if ('algorithm' in object && (typeof object.algorithm !== 'string' || !['SHA1', 'SHA256', 'SHA512'].includes(object.algorithm))) {
