@@ -66,6 +66,7 @@ export interface BackendConfig {
   rateLimiter: {
     enable: boolean
     algorithm: RateLimitAlgorithm
+    trustedIpHeader?: string
     storage: KVMount
   }
 }

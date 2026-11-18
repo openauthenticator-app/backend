@@ -149,6 +149,7 @@ Use `backend.config.ts` to override them.
 | `revenueCat.authorizationHeader`          | `process.env.REVENUECAT_AUTHORIZATION_HEADER`  | Expected `Authorization` header for RevenueCat webhooks.                                                                                                                                          |
 | `rateLimiter.enable`                      | `true`                                         | Enables route rate limiting.                                                                                                                                                                      |
 | `rateLimiter.storage`                     | `{ driver: 'memory' }`                         | Unstorage-compatible storage configuration for rate-limit counters.                                                                                                                               |
+| `rateLimiter.trustedIpHeader`             | `undefined`                                    | Header containing the client IP when the backend is behind a reverse proxy (eg. `X-Forwarded-For`). The last value is used. If not set, the runtime-provided IP is used.                          |
 
 Please refer to [the default config](https://github.com/openauthenticator-app/backend/blob/dev/app/config.ts#L75).
 
@@ -227,7 +228,7 @@ With `authentication.strategy = 'stateful'`, refresh tokens use the same statefu
 
 ### Rate limits
 
-Rate limiting is controlled by `rateLimiter.enable` and uses the configured `rateLimiter.storage` through Unstorage. Keys are scoped by client IP and route path by default. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`; limited responses include `Retry-After` and return `429`.
+Rate limiting is controlled by `rateLimiter.enable` and uses the configured `rateLimiter.storage` through Unstorage. Keys are scoped by client IP and route path by default. If the backend runs behind a reverse proxy, set `rateLimiter.trustedIpHeader` so that the real client IP is used ; it is never read from client-controlled headers otherwise. Responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`; limited responses include `Retry-After` and return `429`.
 
 The default middleware uses a sliding-window algorithm. Most route-specific limits use the default one-minute window. Notable custom limits include :
 

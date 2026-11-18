@@ -1,6 +1,6 @@
 import backendConfig from '~/backend.config'
 import { useStorage } from 'nitro/storage'
-import { createUnstorageStore, getClientIP, rateLimiter } from '~/app'
+import { getClientIP, rateLimiter } from '~/app'
 import type { H3Event, Middleware } from 'nitro/h3'
 
 export const buildScopedRateLimitKey = (
@@ -22,16 +22,13 @@ export const rateLimit = (
     limit?: number | ((event: H3Event) => number | Promise<number>)
     windowMs?: number
     keyGenerator?: (event: H3Event) => string | Promise<string>
-  } = {
-    limit: 20,
-  },
+  } = {},
 ): Middleware => backendConfig.rateLimiter.enable
   ? rateLimiter({
-      ...options,
-      store: createUnstorageStore({
-        storage: useStorage('rateLimiter'),
-      }),
-      algorithm: backendConfig.rateLimiter.algorithm,
+      limit: options.limit ?? 20,
+      windowMs: options.windowMs ?? 60_000,
       keyGenerator: options.keyGenerator ?? defaultKeyGenerator,
+      storage: useStorage('rateLimiter'),
+      algorithm: backendConfig.rateLimiter.algorithm,
     })
   : () => {}
