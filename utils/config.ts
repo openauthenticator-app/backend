@@ -8,17 +8,21 @@ type NestedPartial<T> = [T] extends [KVMount] ? T : {
 }
 
 export function defineBackendConfig(config: NestedPartial<BackendConfig>): BackendConfig {
-  const result: BackendConfig = merge(config, defaultConfig)
   // Storages and databases are replaced as a whole. Merging their options with the default ones would mix the options
   // of different drivers (eg. the default `fs` storage `base` would prefix all the keys of a Cloudflare R2 storage).
-  if (config.totps?.storage) {
-    result.totps.storage = config.totps.storage
+  // They are copied before merging, because the merge also alters the given config.
+  const totpsStorage = config.totps?.storage && { ...config.totps.storage }
+  const rateLimiterStorage = config.rateLimiter?.storage && { ...config.rateLimiter.storage }
+  const database = config.authentication?.database && structuredClone(config.authentication.database) as DatabaseConnectionConfig
+  const result: BackendConfig = merge(config, defaultConfig)
+  if (totpsStorage) {
+    result.totps.storage = totpsStorage
   }
-  if (config.rateLimiter?.storage) {
-    result.rateLimiter.storage = config.rateLimiter.storage
+  if (rateLimiterStorage) {
+    result.rateLimiter.storage = rateLimiterStorage
   }
-  if (config.authentication?.database) {
-    result.authentication.database = config.authentication.database as DatabaseConnectionConfig
+  if (database) {
+    result.authentication.database = database
   }
   return result
 }
