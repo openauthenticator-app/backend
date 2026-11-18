@@ -134,7 +134,7 @@ export class User {
     }
 
     if (options?.deleteTotps) {
-      await TotpBucket.of(this).clear(true)
+      await TotpBucket.of(this).edit(vault => vault.clear(true))
     }
 
     await db

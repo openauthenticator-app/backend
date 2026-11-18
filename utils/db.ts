@@ -1,4 +1,5 @@
 import type { Database, Primitive } from 'db0'
+import { schemaUpgrade } from './schema'
 import { useDatabase } from 'nitro/database'
 
 export interface PreparedRunResult {
@@ -49,3 +50,19 @@ export const useDatabaseWithMetadata = (name?: string) => {
 }
 
 export const hasExactlyOneChange = (result: PreparedRunResult) => result.success && result.changes === 1
+
+let upgraded = false
+
+/** Upgrade initialized installations on first use, including hosts that initialized an older release. */
+export async function ensureSchemaUpgrade() {
+  if (upgraded) return
+  const database = useDatabase()
+  if (['node-sqlite', 'better-sqlite3', 'sqlite3'].includes(database.connector)) {
+    await database.exec('PRAGMA busy_timeout = 5000')
+  }
+  const db = useDatabaseWithMetadata()
+  for (const sql of schemaUpgrade) {
+    if (!(await db.prepare(sql).run()).success) throw new Error('Could not upgrade database schema.')
+  }
+  upgraded = true
+}

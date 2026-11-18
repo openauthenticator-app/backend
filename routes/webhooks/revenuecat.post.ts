@@ -23,6 +23,6 @@ export default defineHandler(async (event: H3Event) => {
     return ErrorObject.validationError().toResponse(event)
   }
 
-  await RevenueCatEventHandler.handle(event, webhook.event)
+  await RevenueCatEventHandler.handle(webhook.event)
   return SuccessObject.fromData().toResponse(event)
 })

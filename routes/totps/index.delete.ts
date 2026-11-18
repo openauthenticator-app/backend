@@ -8,7 +8,7 @@ export default defineHandler({
   handler: async (event: H3Event) => {
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
-    await bucket.clear()
+    await bucket.edit(vault => vault.clear())
     return SuccessObject.fromData().toResponse(event)
   },
 })

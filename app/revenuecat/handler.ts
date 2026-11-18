@@ -1,223 +1,57 @@
 import backendConfig from '~/backend.config'
-import { useDatabaseWithMetadata } from '~/utils/db'
-import type {
-  Attributes,
-  Webhook,
-  WebhookExpiration,
-  WebhookInitialPurchase,
-  WebhookNonRenewingPurchase,
-  WebhookRenewal,
-  WebhookSubscriptionExtended,
-  WebhookTemporaryEntitlementGrant,
-  WebhookTransfer,
-  WebhookUnCancellation,
-} from '@puzzmo/revenue-cat-webhook-types'
-import type { H3Event } from 'nitro/h3'
+import { ensureSchemaUpgrade, useDatabaseWithMetadata } from '~/utils/db'
+import type { Attributes, Webhook } from '@puzzmo/revenue-cat-webhook-types'
 import { AppError } from '~/app/error'
-import { User } from '~/app/user'
 
-export abstract class RevenueCatEventHandler<T extends Webhook['event']> {
-  protected async handle(httpEvent: H3Event, webhookEvent: T): Promise<void> {
-    console.log(`Received a RevenueCat webhook event : ${webhookEvent.type}.`)
-  }
-
-  static handle(httpEvent: H3Event, webhookEvent: Webhook['event']) {
-    if ('subscriber_attributes' in webhookEvent && webhookEvent.subscriber_attributes && typeof webhookEvent.subscriber_attributes === 'object') {
-      const attributes = webhookEvent.subscriber_attributes as Attributes
-      const backend = attributes['backend']
-      const targetValue = new URL(backendConfig.url).hostname
-      if (backend?.value && backend.value !== targetValue) {
-        throw new InvalidBackendHostError(targetValue)
-      }
+export class RevenueCatEventHandler {
+  static async handle(event: Webhook['event']) {
+    if ('subscriber_attributes' in event && event.subscriber_attributes) {
+      const host = (event.subscriber_attributes as Attributes).backend?.value
+      const expected = new URL(backendConfig.url).hostname
+      if (host && host !== expected) throw new InvalidBackendHostError(expected)
     }
-    let handler: RevenueCatEventHandler<typeof webhookEvent>
-    switch (webhookEvent.type) {
-      case 'INITIAL_PURCHASE':
-        handler = new InitialPurchaseHandler()
-        break
-      case 'RENEWAL':
-        handler = new RenewalHandler()
-        break
-      case 'NON_RENEWING_PURCHASE':
-        handler = new NonRenewingPurchaseHandler()
-        break
-      case 'SUBSCRIPTION_EXTENDED':
-        handler = new SubscriptionExtendedHandler()
-        break
-      case 'UNCANCELLATION':
-        handler = new UnCancellationHandler()
-        break
-      case 'EXPIRATION':
-        handler = new ExpirationHandler()
-        break
-      case 'TEMPORARY_ENTITLEMENT_GRANT':
-        handler = new TemporaryEntitlementGrantHandler()
-        break
+    switch (event.type) {
       case 'TRANSFER':
-        handler = new TransferHandler()
+        for (const user of event.transferred_from) await RevenueCatWebhookEventStore.apply(event, user, 'TRANSFER_OUT')
+        for (const user of event.transferred_to) await RevenueCatWebhookEventStore.apply(event, user, 'TRANSFER_IN')
         break
-      default:
-        handler = new UnknownEventHandler()
+      case 'INITIAL_PURCHASE':
+      case 'RENEWAL':
+      case 'NON_RENEWING_PURCHASE':
+      case 'SUBSCRIPTION_EXTENDED':
+      case 'UNCANCELLATION':
+      case 'EXPIRATION':
+      case 'TEMPORARY_ENTITLEMENT_GRANT': {
+        const entitlement = backendConfig.revenueCat.contributorPlanEntitlementId
+        if (event.entitlement_ids && (!entitlement || event.entitlement_ids.includes(entitlement))) {
+          await RevenueCatWebhookEventStore.apply(event, event.app_user_id, event.type)
+        }
         break
-    }
-    return handler.handle(httpEvent, webhookEvent)
-  }
-}
-
-class ContributorPlanHandler<T extends Webhook['event'] & { app_user_id: string, entitlement_ids: string[] | null }> extends RevenueCatEventHandler<T> {
-  private readonly grantAccess: boolean
-
-  constructor(grantAccess: boolean) {
-    super()
-    this.grantAccess = grantAccess
-  }
-
-  protected override async handle(httpEvent: H3Event, webhookEvent: T) {
-    await super.handle(httpEvent, webhookEvent)
-    if (!webhookEvent.entitlement_ids || (backendConfig.revenueCat.contributorPlanEntitlementId && !webhookEvent.entitlement_ids.includes(backendConfig.revenueCat.contributorPlanEntitlementId))) {
-      return
-    }
-    if (!(await RevenueCatWebhookEventStore.canProcess(webhookEvent, webhookEvent.app_user_id))) {
-      return
-    }
-    const user = await User.findInDatabase({ id: webhookEvent.app_user_id })
-    if (user) {
-      if (!(await user.updateInDatabase({ contributorPlan: this.grantAccess }))) {
-        throw new UserUpdateError(webhookEvent.app_user_id)
       }
     }
-    else {
-      console.warn(`RevenueCat webhook ${RevenueCatWebhookEventStore.getEventId(webhookEvent)} ignored because user ${webhookEvent.app_user_id} was not found.`)
-    }
-    await RevenueCatWebhookEventStore.markProcessed(webhookEvent, webhookEvent.app_user_id)
   }
 }
-
-class InitialPurchaseHandler extends ContributorPlanHandler<WebhookInitialPurchase> {
-  constructor() {
-    super(true)
-  }
-}
-
-class RenewalHandler extends ContributorPlanHandler<WebhookRenewal> {
-  constructor() {
-    super(true)
-  }
-}
-
-class NonRenewingPurchaseHandler extends ContributorPlanHandler<WebhookNonRenewingPurchase> {
-  constructor() {
-    super(true)
-  }
-}
-
-class SubscriptionExtendedHandler extends ContributorPlanHandler<WebhookSubscriptionExtended> {
-  constructor() {
-    super(true)
-  }
-}
-
-class UnCancellationHandler extends ContributorPlanHandler<WebhookUnCancellation> {
-  constructor() {
-    super(true)
-  }
-}
-
-class ExpirationHandler extends ContributorPlanHandler<WebhookExpiration> {
-  constructor() {
-    super(false)
-  }
-}
-
-class TemporaryEntitlementGrantHandler extends ContributorPlanHandler<WebhookTemporaryEntitlementGrant> {
-  constructor() {
-    super(true)
-  }
-}
-
-class TransferHandler extends RevenueCatEventHandler<WebhookTransfer> {
-  protected override async handle(httpEvent: H3Event, webhookEvent: WebhookTransfer) {
-    await super.handle(httpEvent, webhookEvent)
-
-    for (const userId of webhookEvent.transferred_from) {
-      if (!(await RevenueCatWebhookEventStore.canProcess(webhookEvent, userId))) {
-        continue
-      }
-      const oldUser = await User.findInDatabase({ id: userId })
-      if (oldUser) {
-        if (!(await oldUser.updateInDatabase({ contributorPlan: false }))) {
-          throw new UserUpdateError(userId)
-        }
-      }
-      else {
-        console.warn(`RevenueCat webhook ${webhookEvent.id} ignored because transferred-from user ${userId} was not found.`)
-      }
-      await RevenueCatWebhookEventStore.markProcessed(webhookEvent, userId)
-    }
-
-    for (const userId of webhookEvent.transferred_to) {
-      if (!(await RevenueCatWebhookEventStore.canProcess(webhookEvent, userId))) {
-        continue
-      }
-      const newUser = await User.findInDatabase({ id: userId })
-      if (newUser) {
-        if (!(await newUser.updateInDatabase({ contributorPlan: true }))) {
-          throw new UserUpdateError(userId)
-        }
-      }
-      else {
-        console.warn(`RevenueCat webhook ${webhookEvent.id} ignored because transferred-to user ${userId} was not found.`)
-      }
-      await RevenueCatWebhookEventStore.markProcessed(webhookEvent, userId)
-    }
-  }
-}
-
-class UnknownEventHandler extends RevenueCatEventHandler<Webhook['event']> {}
 
 export class RevenueCatWebhookEventStore {
-  static async pruneProcessedEvents(days?: number) {
-    const cutoff = Date.now() - (days ?? 365) * 24 * 60 * 60 * 1000
+  static async pruneProcessedEvents(days = 365) {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
+    // Keep the latest event as an ordering watermark while the account exists.
+    const result = await useDatabaseWithMetadata().prepare(
+      `DELETE FROM revenueCatWebhookEvents AS e WHERE createdAt < ?
+       AND (NOT EXISTS (SELECT 1 FROM users WHERE id = e.userId) OR EXISTS (
+         SELECT 1 FROM revenueCatWebhookEvents AS newer WHERE newer.userId = e.userId
+         AND (newer.eventTimestamp, newer.eventId) > (e.eventTimestamp, e.eventId)))`,
+    ).bind(cutoff).run()
+    return result.success
+  }
+
+  static async apply(event: Webhook['event'], userId: string, type: string) {
+    await ensureSchemaUpgrade()
+    // The insert's trigger checks ordering and updates the account in the same SQL transaction.
     const result = await useDatabaseWithMetadata()
-      .prepare('DELETE FROM revenueCatWebhookEvents WHERE createdAt < ?')
-      .bind(cutoff)
-      .run()
-
-    return !!result.success
-  }
-
-  static async canProcess(webhookEvent: Webhook['event'], userId: string) {
-    const eventId = this.getEventId(webhookEvent)
-
-    const existingEvent = await useDatabaseWithMetadata()
-      .prepare('SELECT eventId FROM revenueCatWebhookEvents WHERE eventId = ? AND userId = ? LIMIT 1')
-      .bind(eventId, userId)
-      .get()
-
-    if (existingEvent) {
-      console.log(`RevenueCat webhook ${eventId} ignored because it has already been processed for user ${userId}.`)
-      return false
-    }
-
-    const latestEvent = await useDatabaseWithMetadata()
-      .prepare('SELECT MAX(eventTimestamp) AS eventTimestamp FROM revenueCatWebhookEvents WHERE userId = ?')
-      .bind(userId)
-      .get() as { eventTimestamp?: number | null } | undefined
-
-    if (latestEvent?.eventTimestamp != null && latestEvent.eventTimestamp > webhookEvent.event_timestamp_ms) {
-      console.log(`RevenueCat webhook ${eventId} ignored because a newer event was already processed for user ${userId}.`)
-      await this.markProcessed(webhookEvent, userId)
-      return false
-    }
-
-    return true
-  }
-
-  static async markProcessed(webhookEvent: Webhook['event'], userId: string) {
-    await useDatabaseWithMetadata()
       .prepare('INSERT OR IGNORE INTO revenueCatWebhookEvents (eventId, userId, eventTimestamp, type, createdAt) VALUES (?, ?, ?, ?, ?)')
-      .bind(this.getEventId(webhookEvent), userId, webhookEvent.event_timestamp_ms, webhookEvent.type, Date.now())
-      .run()
+      .bind(this.getEventId(event), userId, event.event_timestamp_ms, type, Date.now()).run()
+    if (!result.success) throw new AppError('Could not record subscription event.', 'subscriptionUpdate', 500)
   }
 
   static getEventId(webhookEvent: Webhook['event']) {
@@ -234,11 +68,5 @@ export class RevenueCatWebhookEventStore {
 class InvalidBackendHostError extends AppError {
   constructor(targetValue: string) {
     super(`Invalid backend host. Must be ${targetValue}.`, InvalidBackendHostError, 400)
-  }
-}
-
-class UserUpdateError extends AppError {
-  constructor(userId: string) {
-    super(`Unable to update user ${userId}.`, UserUpdateError, 500)
   }
 }

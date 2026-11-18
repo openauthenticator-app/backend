@@ -13,7 +13,7 @@ export default defineHandler({
     const body = await readValidatedBody<H3Event, Record<string, EncryptedTotp>>(event, validateBody)
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
-    await bucket.setAll(body)
+    await bucket.edit(vault => vault.setAll(body))
     return SuccessObject.fromData().toResponse(event)
   },
 })

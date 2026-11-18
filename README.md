@@ -127,7 +127,7 @@ Use `backend.config.ts` to override them.
 | `enableRegistrations`                     | `true`                                         | Allows creating new users when a valid login does not match an existing account.                                                                                                                  |
 | `adminHeader`                             | `process.env.ADMIN_HEADER`                     | Expected `Authorization` header for `/admin/*` routes.                                                                                                                                            |
 | `redirectionPageBuilder`                  | Default HTML redirect page builder             | Builds the HTML page returned during app redirection flows. Receives the target URL and optional locale.                                                                                          |
-| `totps.storage`                           | `{ driver: 'memory' }`                         | Unstorage-compatible storage configuration for encrypted TOTP data.                                                                                                                               |
+| `totps.storage`                           | `{ driver: 'fs', base: './.data/totps' }`                         | Unstorage-compatible storage configuration for encrypted TOTP data.                                                                                                                               |
 | `totps.limit.default`                     | `6`                                            | Maximum number of TOTPs for regular users.                                                                                                                                                        |
 | `totps.limit.contributor`                 | `100`                                          | Maximum number of TOTPs for contributor users.                                                                                                                                                    |
 | `authentication.strategy`                 | `hybrid`                                       | Session strategy. `stateless` uses JWTs only, `hybrid` stores refresh sessions but validates access tokens without a DB lookup, and `stateful` checks the session database for access tokens too. |
@@ -154,6 +154,10 @@ Please refer to [the default config](https://github.com/openauthenticator-app/ba
 
 > [!NOTE]
 > Don't forget to rebuild the server after each configuration change.
+
+For Node deployments, persist the `.data` directory across restarts. When upgrading an existing server, stop older instances before serving writes with the new version. The first vault access or subscription update adds the revision index and subscription trigger to an initialized database. You can also run the idempotent `POST /admin/init` during the upgrade. All replicas must share the same SQL database and TOTP storage. Back up and restore both together.
+
+The server reads existing per-TOTP storage keys until the first successful write for that user. Subsequent writes publish an immutable encrypted vault revision in the same configured storage and conditionally advance its SQL pointer. Concurrent edits are re-evaluated against the current revision. After this conversion, rolling back the server requires restoring the matching pre-upgrade backup.
 
 ### Populate, reset and prune data
 

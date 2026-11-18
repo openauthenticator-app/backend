@@ -1,3 +1,18 @@
+export const schemaUpgrade = [
+  'CREATE TABLE IF NOT EXISTS totpBucketHeads (userId TEXT PRIMARY KEY, revision TEXT NOT NULL)',
+  'CREATE TRIGGER IF NOT EXISTS deleteTotpBucketHead AFTER DELETE ON users BEGIN DELETE FROM totpBucketHeads WHERE userId = OLD.id; END',
+  'CREATE TRIGGER IF NOT EXISTS cleanUserMetadata AFTER DELETE ON users BEGIN DELETE FROM sessions WHERE userId = OLD.id; DELETE FROM emailVerifications WHERE userId = OLD.id; END',
+  `CREATE TRIGGER IF NOT EXISTS applyRevenueCatPlan AFTER INSERT ON revenueCatWebhookEvents
+   WHEN NOT EXISTS (
+     SELECT 1 FROM revenueCatWebhookEvents WHERE userId = NEW.userId
+     AND (eventTimestamp, eventId) > (NEW.eventTimestamp, NEW.eventId)
+   )
+   BEGIN
+     UPDATE users SET contributorPlan = CASE WHEN NEW.type IN ('EXPIRATION', 'TRANSFER_OUT') THEN 0 ELSE 1 END
+     WHERE id = NEW.userId;
+   END`,
+]
+
 /**
  * The database schema. All statements are idempotent.
  */
@@ -22,6 +37,7 @@ export const schema = [
   'CREATE UNIQUE INDEX IF NOT EXISTS emailVerifications_userId_unique ON emailVerifications(userId)',
 
   'CREATE INDEX IF NOT EXISTS revenueCatWebhookEvents_userId_eventTimestamp_index ON revenueCatWebhookEvents(userId, eventTimestamp)',
+  ...schemaUpgrade,
 ]
 
-export const tables = ['users', 'sessions', 'emailVerifications', 'revenueCatWebhookEvents']
+export const tables = ['totpBucketHeads', 'users', 'sessions', 'emailVerifications', 'revenueCatWebhookEvents']

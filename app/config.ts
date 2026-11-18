@@ -98,7 +98,8 @@ export default {
   },
   totps: {
     storage: {
-      driver: 'memory',
+      driver: 'fs',
+      base: './.data/totps',
     },
     limit: {
       default: 6,

@@ -1,7 +1,7 @@
 import { rateLimit } from '~/utils/ratelimit'
 import { SuccessObject } from '~/utils/utils'
-import { isEncryptedTotp, isPlainObject, isValidUUID } from '~/utils/validation'
-import { AppError, areEncryptedTotpsEqual, TooManyTotpsError, TotpBucket, type UserEvent, type UUID } from '~/app'
+import { isEncryptedTotp, isPlainObject, isValidTimestamp, isValidUUID } from '~/utils/validation'
+import { AppError, areEncryptedTotpsEqual, TotpBucket, type UserEvent, type UUID } from '~/app'
 import { defineHandler, type H3Event, readValidatedBody } from 'nitro/h3'
 
 const validateBody = (body: unknown) => Array.isArray(body) && body.every(operation =>
@@ -19,89 +19,77 @@ export default defineHandler({
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
     const operations = await readValidatedBody<H3Event, PushOperation[]>(event, validateBody)
-    const results: PushOperationResult[] = []
+    const compacted = compactOperations(operations)
+    const results = await bucket.edit((vault) => {
+      const results: PushOperationResult[] = []
+      const { active, deleted: tombstones } = vault.data
+      let count = 0
 
-    const active = await bucket.getAll()
-    const tombstones = await bucket.getTombstones()
-    let activeCount = Object.keys(active).length
-    let count = 0
-
-    const applySet = async (totpUuid: UUID, totp: unknown): Promise<OperationError | null> => {
-      if (!isEncryptedTotp(totp)) {
-        return ['invalidTotp', 'Invalid encrypted TOTP.']
-      }
-      const existing = active[totpUuid]
-      if (existing && existing.updatedAt > totp.updatedAt) {
-        return ['invalidUpdateTimestamp', 'Encrypted TOTP is older than the currently stored one.']
-      }
-      const tombstone = tombstones[totpUuid]
-      if (tombstone && tombstone.deletedAt >= totp.updatedAt) {
-        return ['deletedTotp', 'A TOTP with the same UUID has been deleted more recently.']
-      }
-      if (existing && areEncryptedTotpsEqual(existing, totp)) {
+      const applySet = (totpUuid: UUID, totp: unknown): OperationError | null => {
+        if (!isEncryptedTotp(totp)) {
+          return ['invalidTotp', 'Invalid encrypted TOTP.']
+        }
+        const existing = active[totpUuid]
+        if (existing && existing.updatedAt > totp.updatedAt) {
+          return ['invalidUpdateTimestamp', 'Encrypted TOTP is older than the currently stored one.']
+        }
+        const tombstone = tombstones[totpUuid]
+        if (tombstone && tombstone.deletedAt >= totp.updatedAt) {
+          return ['deletedTotp', 'A TOTP with the same UUID has been deleted more recently.']
+        }
+        if (existing && areEncryptedTotpsEqual(existing, totp)) {
+          return null
+        }
+        vault.set(totpUuid, totp)
         return null
       }
-      if (!existing && bucket.limit && activeCount >= bucket.limit) {
-        throw new TooManyTotpsError()
-      }
-      await bucket.set(totpUuid, totp, true)
-      if (!existing) {
-        activeCount++
-      }
-      active[totpUuid] = totp
-      delete tombstones[totpUuid]
-      return null
-    }
 
-    const applyDelete = async (totpUuid: UUID, deletedAt: unknown): Promise<OperationError | null> => {
-      if (typeof deletedAt !== 'number') {
-        return ['invalidDeleteTimestamp', 'Invalid delete timestamp : must be a number.']
-      }
-      const existing = active[totpUuid]
-      if (existing && existing.updatedAt > deletedAt) {
-        return ['invalidDeleteTimestamp', 'Currently stored TOTP is newer than the one you are trying to delete.']
-      }
-      const tombstone = tombstones[totpUuid]
-      if (!tombstone || tombstone.deletedAt < deletedAt) {
-        await bucket.delete(totpUuid, deletedAt)
-        if (existing) {
-          activeCount--
-          delete active[totpUuid]
+      const applyDelete = (totpUuid: UUID, deletedAt: unknown): OperationError | null => {
+        if (!isValidTimestamp(deletedAt)) {
+          return ['invalidDeleteTimestamp', 'Invalid delete timestamp : must be a number.']
         }
-        tombstones[totpUuid] = { deletedAt }
+        const existing = active[totpUuid]
+        if (existing && existing.updatedAt > deletedAt) {
+          return ['invalidDeleteTimestamp', 'Currently stored TOTP is newer than the one you are trying to delete.']
+        }
+        const tombstone = tombstones[totpUuid]
+        if (!tombstone || tombstone.deletedAt < deletedAt) {
+          vault.delete(totpUuid, deletedAt)
+        }
+        return null
       }
-      return null
-    }
 
-    for (const operation of compactOperations(operations)) {
-      const apply = operation.kind === 'set' ? applySet : applyDelete
-      for (const [totpUuid, value] of Object.entries(operation.payload)) {
-        const pushResult = (errorCode: string | null = null, errorDetails: string | null = null) => results.push({
-          operationUuid: operation.uuid,
-          totpUuid,
-          errorCode,
-          errorDetails,
-        })
-        if (!isValidUUID(totpUuid)) {
-          pushResult('invalidUuid', 'Invalid UUID.')
-          continue
-        }
-        if (++count > maxCount) {
-          pushResult('maxOperationsCountExceeded', 'Maximum number of operations exceeded.')
-          continue
-        }
-        try {
-          const error = await apply(totpUuid as UUID, value)
-          pushResult(...(error ?? []))
-        }
-        catch (error) {
-          pushResult(
-            error instanceof AppError ? error.errorCode : 'genericError',
-            error instanceof Error ? error.message : `${error}`,
-          )
+      for (const operation of compacted) {
+        const apply = operation.kind === 'set' ? applySet : applyDelete
+        for (const [totpUuid, value] of Object.entries(operation.payload)) {
+          const pushResult = (errorCode: string | null = null, errorDetails: string | null = null) => results.push({
+            operationUuid: operation.uuid,
+            totpUuid,
+            errorCode,
+            errorDetails,
+          })
+          if (!isValidUUID(totpUuid)) {
+            pushResult('invalidUuid', 'Invalid UUID.')
+            continue
+          }
+          if (++count > maxCount) {
+            pushResult('maxOperationsCountExceeded', 'Maximum number of operations exceeded.')
+            continue
+          }
+          try {
+            const error = apply(totpUuid as UUID, value)
+            pushResult(...(error ?? []))
+          }
+          catch (error) {
+            pushResult(
+              error instanceof AppError ? error.errorCode : 'genericError',
+              error instanceof Error ? error.message : `${error}`,
+            )
+          }
         }
       }
-    }
+      return results
+    })
     return SuccessObject.fromData(results).toResponse(event)
   },
 })

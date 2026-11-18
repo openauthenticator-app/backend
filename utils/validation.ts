@@ -2,6 +2,8 @@ import type { EncryptedTotp } from '~/app/totp'
 
 export const isPlainObject = (object: unknown): object is Record<string, unknown> => !!object && typeof object === 'object' && !Array.isArray(object)
 
+export const isValidTimestamp = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && Math.abs(value) <= 8640000000000000
+
 export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if (!isPlainObject(object)) {
     return false
@@ -9,13 +11,13 @@ export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if ('algorithm' in object && (typeof object.algorithm !== 'string' || !['SHA1', 'SHA256', 'SHA512'].includes(object.algorithm))) {
     return false
   }
-  if ('digits' in object && typeof object.digits !== 'number') {
+  if ('digits' in object && !(typeof object.digits === 'number' && Number.isInteger(object.digits) && object.digits >= 4 && object.digits <= 15)) {
     return false
   }
-  if ('validity' in object && typeof object.validity !== 'number') {
+  if ('validity' in object && !(typeof object.validity === 'number' && Number.isInteger(object.validity) && object.validity > 0 && object.validity <= 2147483647)) {
     return false
   }
-  if (!('updatedAt' in object) || typeof object.updatedAt !== 'number') {
+  if (!isValidTimestamp(object.updatedAt)) {
     return false
   }
   if (!('encryptionSalt' in object) || !isUint8Array(object.encryptionSalt)) {
@@ -24,10 +26,10 @@ export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   if (!('secret' in object) || !isUint8Array(object.secret)) {
     return false
   }
-  if (!('label' in object) || !isUint8Array(object.label)) {
+  if ('label' in object && !isUint8Array(object.label)) {
     return false
   }
-  if (!('issuer' in object) || !isUint8Array(object.issuer)) {
+  if ('issuer' in object && !isUint8Array(object.issuer)) {
     return false
   }
   if ('imageUrl' in object && !isUint8Array(object.imageUrl)) {
@@ -36,7 +38,7 @@ export const isEncryptedTotp = (object: unknown): object is EncryptedTotp => {
   return true
 }
 
-const isUint8Array = (object: unknown) => Array.isArray(object) && object.every(item => typeof item === 'number' && item >= 0 && item <= 255)
+const isUint8Array = (object: unknown) => Array.isArray(object) && object.every(item => typeof item === 'number' && Number.isInteger(item) && item >= 0 && item <= 255)
 
 export const isValidUUID = (uuid: string) => {
   return /^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$/i.test(uuid)

@@ -1,45 +1,160 @@
 import backendConfig from '~/backend.config'
-import { useDatabaseWithMetadata } from '~/utils/db'
-import type { Storage } from 'unstorage'
-import { User } from '~/app/user'
+import { ensureSchemaUpgrade, hasExactlyOneChange, useDatabaseWithMetadata } from '~/utils/db'
+import type { User } from '~/app/user'
 import { AppError } from '~/app/error'
 import { useStorage } from 'nitro/storage'
 
-interface StorageObject<K extends string, V> {
-  key: K
-  value: V
-}
-
 export type UUID = `${string}-${string}-${string}-${string}-${string}`
-
 const dayMs = 24 * 60 * 60 * 1000
 
-export class TotpBucket {
-  private readonly storage: Storage<EncryptedTotp>
-  private readonly deletedStorage: Storage<TotpTombstone>
-  public readonly limit: number | undefined
+export interface VaultData {
+  active: Record<UUID, EncryptedTotp>
+  deleted: Record<UUID, TotpTombstone>
+}
 
-  private constructor(userId: string, limit?: number) {
-    this.storage = useStorage<EncryptedTotp>(`totps/${userId}/totps`)
-    this.deletedStorage = useStorage<TotpTombstone>(`totps/${userId}/deleted`)
-    this.limit = limit
+/** An isolated candidate revision. The caller publishes all changes together. */
+export class VaultEditor {
+  public changed = false
+  constructor(readonly data: VaultData, readonly limit?: number) {}
+
+  set(uuid: UUID, record: EncryptedTotp) {
+    const { active, deleted } = this.data
+    if (!active[uuid] && this.limit && Object.keys(active).length >= this.limit) {
+      throw new TooManyTotpsError()
+    }
+    active[uuid] = record
+    delete deleted[uuid]
+    this.changed = true
   }
+
+  delete(uuid: UUID, deletedAt = Date.now()) {
+    delete this.data.active[uuid]
+    this.data.deleted[uuid] = { deletedAt }
+    this.changed = true
+  }
+
+  setAll(records: Record<UUID, EncryptedTotp>) {
+    if (this.limit && Object.keys(records).length > this.limit) throw new TooManyTotpsError()
+    const now = Date.now()
+    for (const key of Object.keys(this.data.active) as UUID[]) {
+      if (!(key in records)) this.delete(key, now)
+    }
+    for (const [key, record] of Object.entries(records)) this.set(key as UUID, record)
+  }
+
+  clear(clearDeleted = false) {
+    this.setAll({})
+    if (clearDeleted) {
+      this.data.deleted = {}
+      this.changed = true
+    }
+  }
+}
+
+export class TotpBucket {
+  private constructor(private readonly userId: string, private readonly limit?: number) {}
 
   static of(user: User) {
     return new TotpBucket(user.id, user.totpsLimit)
   }
 
-  static async pruneDeletedTotps(days?: number) {
-    const storage = useStorage('totps')
-    const users = new Set(
-      (await storage.getKeys())
-        .map(key => key.split(':'))
-        .filter((parts): parts is [string, 'deleted', ...string[]] => parts.length >= 3 && parts[1] === 'deleted')
-        .map(([user]) => user),
-    )
+  private get storage() {
+    return useStorage(`totps/${this.userId}`)
+  }
 
-    for (const user of users) {
-      await new TotpBucket(user).prune(days)
+  private async head(): Promise<string | null> {
+    await ensureSchemaUpgrade()
+    const row = await useDatabaseWithMetadata().prepare('SELECT revision FROM totpBucketHeads WHERE userId = ?').bind(this.userId).get() as { revision: string } | undefined
+    return row?.revision ?? null
+  }
+
+  private async snapshot(): Promise<{ revision: string | null, data: VaultData }> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const revision = await this.head()
+      if (revision === null) {
+        const active = useStorage<EncryptedTotp>(`totps/${this.userId}/totps`)
+        const deleted = useStorage<TotpTombstone>(`totps/${this.userId}/deleted`)
+        const data: VaultData = {
+          active: storageObjectsToRecord(await active.getItems(await active.getKeys())),
+          deleted: storageObjectsToRecord(await deleted.getItems(await deleted.getKeys())),
+        }
+        if (await this.head() === null) return { revision, data }
+      }
+      else {
+        if (revision.startsWith('empty-')) return { revision, data: { active: {}, deleted: {} } }
+        const data = await this.storage.getItem<VaultData>(`revisions:${revision}`)
+        if (data) return { revision, data: { active: { ...data.active }, deleted: { ...data.deleted } } }
+        // An obsolete revision may have just been collected. Never interpret missing data as an empty vault.
+        if (await this.head() === revision) break
+      }
+    }
+    throw new AppError('Vault revision temporarily unavailable.', 'vaultUnavailable', 503)
+  }
+
+  async read() {
+    return (await this.snapshot()).data
+  }
+
+  private async removeLegacyKeys() {
+    const storage = this.storage
+    const groups = await Promise.all([storage.getKeys('totps'), storage.getKeys('deleted')])
+    await Promise.all(groups.flat().map(key => storage.removeItem(key)))
+  }
+
+  /** Re-evaluate timestamp conflicts and quota against the winning revision on contention. */
+  async edit<T>(change: (editor: VaultEditor) => T): Promise<T> {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { revision, data } = await this.snapshot()
+      const editor = new VaultEditor(data, this.limit)
+      const result = change(editor)
+      if (!editor.changed) return result
+      const empty = !Object.keys(data.active).length && !Object.keys(data.deleted).length
+      const next = (empty ? 'empty-' : '') + Date.now() + '-' + crypto.randomUUID()
+      if (!empty) await this.storage.setItem(`revisions:${next}`, data)
+      const db = useDatabaseWithMetadata()
+      const published = revision === null
+        ? await db.prepare('INSERT OR IGNORE INTO totpBucketHeads (userId, revision) SELECT id, ? FROM users WHERE id = ?').bind(next, this.userId).run()
+        : await db.prepare('UPDATE totpBucketHeads SET revision = ? WHERE userId = ? AND revision = ?').bind(next, this.userId, revision).run()
+      if (!published.success) throw new AppError('Could not publish vault revision.', 'vaultUnavailable', 503)
+      if (hasExactlyOneChange(published)) {
+        // Publication is durable. The scheduled prune retries interrupted cleanup.
+        try {
+          if (revision === null) await this.removeLegacyKeys()
+          else if (!revision.startsWith('empty-')) await this.storage.removeItem(`revisions:${revision}`)
+        }
+        catch (error) {
+          console.warn('Vault revision cleanup deferred.', error)
+        }
+        return result
+      }
+      if (!empty) await this.storage.removeItem(`revisions:${next}`)
+    }
+    throw new AppError('Concurrent vault update. Please retry.', 'vaultBusy', 503)
+  }
+
+  static async pruneDeletedTotps(days = 365) {
+    const keys = await useStorage('totps').getKeys()
+    const cutoff = Date.now() - days * dayMs
+    const users = new Set(keys.map(key => key.split(':')[0]!))
+    for (const userId of users) {
+      const bucket = new TotpBucket(userId)
+      const user = await useDatabaseWithMetadata().prepare('SELECT id FROM users WHERE id = ?').bind(userId).get()
+      if (user) await bucket.edit((editor) => {
+        for (const [key, tombstone] of Object.entries(editor.data.deleted)) {
+          if (tombstone.deletedAt < cutoff) {
+            delete editor.data.deleted[key as UUID]
+            editor.changed = true
+          }
+        }
+      })
+      // Reclaim abandoned publications only after any in-flight writer has finished.
+      const revisions = await bucket.storage.getKeys('revisions')
+      const head = await bucket.head()
+      if (head || !user) await bucket.removeLegacyKeys()
+      for (const key of revisions) {
+        const revision = key.split(':').at(-1)!
+        if (revision !== head && Number(revision.split('-')[0]) < Date.now() - 7 * dayMs) await bucket.storage.removeItem(key)
+      }
     }
   }
 
@@ -57,89 +172,18 @@ export class TotpBucket {
       .all()) as { id: string }[]
     for (const { id } of users) {
       const bucket = new TotpBucket(id)
-      if ((await bucket.storage.getKeys()).length > 0) {
-        continue
-      }
-      await bucket.clear(true)
-      await db.prepare('DELETE FROM sessions WHERE userId = ?').bind(id).run()
-      await db.prepare('DELETE FROM emailVerifications WHERE userId = ?').bind(id).run()
-      await db.prepare('DELETE FROM users WHERE id = ?').bind(id).run()
-    }
-  }
-
-  public has(uuid: UUID) {
-    return this.storage.hasItem(uuid)
-  }
-
-  public get(uuid: UUID) {
-    return this.storage.getItem(uuid)
-  }
-
-  public async set(uuid: UUID, record: EncryptedTotp, bypassLimit: boolean = false) {
-    if (this.limit && !bypassLimit && !await this.storage.hasItem(uuid)) {
-      const count = (await this.storage.getKeys()).length
-      if (count >= this.limit) {
-        throw new TooManyTotpsError()
+      const { revision, data } = await bucket.snapshot()
+      if (Object.keys(data.active).length) continue
+      const deleted = await db.prepare(`DELETE FROM users WHERE id = ? AND contributorPlan = 0
+        AND NOT EXISTS (SELECT 1 FROM sessions WHERE userId = users.id AND expiration > ?)
+        AND (SELECT revision FROM totpBucketHeads WHERE userId = users.id) IS ?`)
+        .bind(id, cutoff, revision).run()
+      if (hasExactlyOneChange(deleted)) {
+        await bucket.removeLegacyKeys()
+        if (revision && !revision.startsWith('empty-')) await bucket.storage.removeItem(`revisions:${revision}`)
       }
     }
-    await this.storage.setItem(uuid, record)
-    await this.deletedStorage.removeItem(uuid)
   }
-
-  public async delete(uuid: UUID, deletedAt?: number) {
-    await this.storage.removeItem(uuid)
-    await this.deletedStorage.setItem(uuid, { deletedAt: deletedAt ?? Date.now() })
-  }
-
-  public async getAll(): Promise<Record<UUID, EncryptedTotp>> {
-    const uuids = await this.storage.getKeys()
-    return storageObjectsToRecord(await this.storage.getItems(uuids))
-  }
-
-  public async setAll(record: Record<UUID, EncryptedTotp>, bypassLimit: boolean = false) {
-    const keysToSet = Object.keys(record)
-    // The whole bucket is replaced, so only the new keys count toward the limit.
-    if (this.limit && !bypassLimit && keysToSet.length > this.limit) {
-      throw new TooManyTotpsError()
-    }
-    const keysToSetSet = new Set(keysToSet)
-    const deletedKeys = (await this.storage.getKeys()).filter(key => !keysToSetSet.has(key))
-    await this.storage.setItems(keysToSet.map(key => ({ key, value: record[key as UUID]! })))
-    await Promise.all(deletedKeys.map(key => this.storage.removeItem(key)))
-    await this.deletedStorage.setItems(keysToTombstonesStorageObjects(deletedKeys))
-    await Promise.all(keysToSet.map(key => this.deletedStorage.removeItem(key)))
-  }
-
-  public async clear(clearDeleted = false) {
-    const existingKeys = await this.storage.getKeys()
-    await this.storage.clear()
-    if (clearDeleted) {
-      await this.deletedStorage.clear()
-    }
-    else {
-      await this.deletedStorage.setItems(keysToTombstonesStorageObjects(existingKeys))
-    }
-  }
-
-  public async getTombstones(): Promise<Record<UUID, TotpTombstone>> {
-    const uuids = await this.deletedStorage.getKeys()
-    return storageObjectsToRecord(await this.deletedStorage.getItems(uuids))
-  }
-
-  private async prune(days?: number) {
-    const cutoff = Date.now() - (days ?? 365) * dayMs
-    const tombstones = await this.getTombstones()
-    await Promise.all(
-      Object.entries(tombstones)
-        .filter(([, tombstone]) => tombstone.deletedAt < cutoff)
-        .map(([key]) => this.deletedStorage.removeItem(key)),
-    )
-  }
-}
-
-const keysToTombstonesStorageObjects = (keys: string[]): StorageObject<string, TotpTombstone>[] => {
-  const deletedAt = Date.now()
-  return keys.map(key => ({ key, value: { deletedAt } }))
 }
 
 const storageObjectsToRecord = <V>(storageObjects: { key: string, value: unknown }[]): Record<UUID, V> => {
@@ -164,8 +208,8 @@ export interface EncryptedTotp {
   validity?: number
   encryptionSalt: Uint8Array
   secret: Uint8Array
-  label: Uint8Array
-  issuer: Uint8Array
+  label?: Uint8Array
+  issuer?: Uint8Array
   imageUrl?: Uint8Array
   updatedAt: number
 }

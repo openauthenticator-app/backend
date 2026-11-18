@@ -11,9 +11,9 @@ export default defineHandler({
     assert(isValidUUID(totpUuid), 'Invalid UUID.')
     const userEvent = event as UserEvent
     const bucket = TotpBucket.of(userEvent.context.user)
-    if (await bucket.has(totpUuid as UUID)) {
-      await bucket.delete(totpUuid as UUID)
-    }
+    await bucket.edit((vault) => {
+      if (vault.data.active[totpUuid as UUID]) vault.delete(totpUuid as UUID)
+    })
     return SuccessObject.fromData().toResponse(event)
   },
 })
